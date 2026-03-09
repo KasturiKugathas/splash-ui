@@ -1,6 +1,6 @@
 # Splash-UI
 
-Splash-UI is a developer tool that provides a safe graphical interface for editing configuration files (`JSON`, `YAML`, `XML`) in GitHub repositories, with approval workflows before changes are merged.
+Splash-UI is a developer/business tool that provides a safe graphical interface for editing configuration files (`JSON`, `YAML`, `XML`) in GitHub repositories, with approval workflows before changes are merged.
 
 ## Why Splash-UI
 
