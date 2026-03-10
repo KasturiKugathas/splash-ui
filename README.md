@@ -1,19 +1,10 @@
 # Splash-UI
 
-Splash-UI is a developer and business governance tool for safely managing configuration changes in GitHub repositories through a structured web UI.
-
-It allows teams to edit configuration files (`JSON`, `YAML`, `XML`) without manual file editing, while enforcing approval workflows before changes are merged.
+Splash-UI is a developer tool that provides a safe graphical interface for editing configuration files (`JSON`, `YAML`, `XML`) in GitHub repositories, with approval workflows before changes are merged.
 
 ## Why Splash-UI
 
-Manual config edits are risky, difficult to audit, and hard to scale across teams. Splash-UI helps engineering and business stakeholders collaborate with clear controls, visibility, and traceability.
-
-### Business Value
-
-- Reduces production risk from manual configuration changes
-- Improves compliance with approval and audit trails
-- Speeds up change turnaround with standardized workflows
-- Enables non-developer stakeholders to participate safely in governed updates
+Teams often edit config files manually, which is error-prone and hard to govern. Splash-UI reduces risk by combining structured editing, change visibility, and pull-request based approvals.
 
 ## Core Features
 
@@ -27,24 +18,24 @@ Manual config edits are risky, difficult to audit, and hard to scale across team
    - Open JSON, YAML, and XML files
 
 3. **Configuration Editor**
-   - Structured UI for editing config values
-   - Change detection and validation
-   - Diff preview before saving
+   - Structured UI for config editing
+   - Change detection
+   - Diff preview before save
 
-4. **Approval Flow + Pull Request**
-   - Create branch for each change
-   - Commit updates automatically
+4. **Approval + Pull Request Workflow**
+   - Create branch from edited config
+   - Commit changes automatically
    - Open GitHub Pull Request
-   - Enforce approval before merge
+   - Track approval workflow before merge
 
 ## Tech Stack
 
 - **Frontend:** Next.js (React), TypeScript, Tailwind CSS
 - **Backend:** FastAPI (Python)
-- **Integrations:** GitHub API, OAuth
-- **Parsing:** JSON, YAML, XML libraries
-- **Infrastructure:** Docker for local development, cloud-ready for AWS/Azure
+- **Integrations:** GitHub API + OAuth
+- **Config Parsing:** JSON, YAML, XML parsers
+- **Infra:** Local-first with Docker, cloud-ready for AWS/Azure
 
-## Product Goal
+## Project Goal
 
-Provide a secure, auditable, and scalable configuration management workflow that supports both engineering execution and business governance.
+Enable developers and platform teams to manage repository configuration changes through a governed UI workflow, instead of manual file edits, while preserving GitHub-native review and merge practices.

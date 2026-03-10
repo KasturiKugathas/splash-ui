@@ -1,0 +1,71 @@
+version: "3.9"
+
+services:
+  web:
+    container_name: splash_web
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    command: sh -c "echo 'web placeholder'; sleep infinity"
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.example
+    volumes:
+      - ./apps/web:/app
+    depends_on:
+      - api
+
+  api:
+    container_name: splash_api
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    command: sh -c "echo 'api placeholder'; sleep infinity"
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.example
+    volumes:
+      - ./apps/api:/app
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    container_name: splash_worker
+    build:
+      context: ./apps/worker
+      dockerfile: Dockerfile
+    command: sh -c "echo 'worker placeholder'; sleep infinity"
+    env_file:
+      - .env.example
+    volumes:
+      - ./apps/worker:/app
+    depends_on:
+      - api
+      - redis
+
+  postgres:
+    container_name: splash_postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: splash
+      POSTGRES_PASSWORD: splash
+      POSTGRES_DB: splash_ui
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    container_name: splash_redis
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
