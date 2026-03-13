@@ -2,7 +2,7 @@
 
 import ConfigSection from "./config-section";
 import KeyValueRow from "./key-value-row";
-import type { ConfigNode } from "../../lib/config-tree";
+import type { ConfigNode } from "../../lib/config-node";
 
 function inputStyle() {
   return {

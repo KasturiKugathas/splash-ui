@@ -1,12 +1,4 @@
-export type ConfigNodeKind = "string" | "number" | "boolean" | "object" | "array" | "null";
-
-export type ConfigNode = {
-  key: string;
-  path: string;
-  kind: ConfigNodeKind;
-  value: string | number | boolean | null;
-  children: ConfigNode[];
-};
+import type { ConfigNode } from "./config-node";
 
 export type ConfigTreeResponse = {
   repository: string;

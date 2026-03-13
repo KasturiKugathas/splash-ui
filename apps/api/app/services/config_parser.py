@@ -1,48 +1,24 @@
 from __future__ import annotations
 
-import json
-import xml.etree.ElementTree as ET
-from io import StringIO
 from pathlib import PurePosixPath
-from typing import Any, Literal, TypedDict
+from typing import Any
 
-import yaml
-
+from app.services.config_types import ConfigNode
 from app.services.github_client import FileContent, GitHubClientError
-
-ConfigNodeKind = Literal["string", "number", "boolean", "object", "array", "null"]
-
-
-class ConfigNode(TypedDict):
-    key: str
-    path: str
-    kind: ConfigNodeKind
-    value: str | float | bool | None
-    children: list["ConfigNode"]
+from app.services.parsers.resolver import resolve_parser
 
 
 def parse_config(file_content: FileContent) -> Any:
-    suffix = PurePosixPath(file_content["path"]).suffix.lower()
     raw_content = file_content["content"]
+    parser = resolve_parser(file_content["path"])
 
     try:
-        if suffix == ".json":
-            return json.loads(raw_content)
-        if suffix in {".yaml", ".yml"}:
-            return yaml.safe_load(raw_content)
-        if suffix == ".xml":
-            element = ET.parse(StringIO(raw_content)).getroot()
-            return {element.tag: _xml_to_object(element)}
-    except (json.JSONDecodeError, yaml.YAMLError, ET.ParseError) as exc:
+        return parser.parse(raw_content)
+    except Exception as exc:
         raise GitHubClientError(
             f"Could not parse {file_content['path']}: {exc}",
             status_code=422,
         ) from exc
-
-    raise GitHubClientError(
-        f"Unsupported config format for {file_content['path']}.",
-        status_code=400,
-    )
 
 
 def build_config_tree(file_content: FileContent) -> ConfigNode:
@@ -95,30 +71,3 @@ def normalize_config(key: str, value: Any, path: str) -> ConfigNode:
         return {"key": key, "path": path, "kind": "null", "value": None, "children": []}
 
     return {"key": key, "path": path, "kind": "string", "value": str(value), "children": []}
-
-
-def _xml_to_object(element: ET.Element) -> Any:
-    attributes = {f"@{key}": value for key, value in element.attrib.items()}
-    child_elements = list(element)
-
-    if not child_elements:
-        text = (element.text or "").strip()
-        if attributes and text:
-            return {**attributes, "#text": text}
-        if attributes:
-            return attributes
-        return text
-
-    grouped_children: dict[str, list[Any]] = {}
-    for child in child_elements:
-        grouped_children.setdefault(child.tag, []).append(_xml_to_object(child))
-
-    normalized_children: dict[str, Any] = {}
-    for child_tag, values in grouped_children.items():
-        normalized_children[child_tag] = values[0] if len(values) == 1 else values
-
-    text = (element.text or "").strip()
-    if text:
-        normalized_children["#text"] = text
-
-    return {**attributes, **normalized_children}
