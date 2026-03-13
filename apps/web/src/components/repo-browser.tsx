@@ -1,6 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+
+import { getConfigTree } from "../lib/config-tree";
 
 type Repository = {
   id: string;
@@ -26,6 +30,11 @@ type FileContent = {
   encoding: string;
   language: string;
   content: string;
+};
+
+type ConfigStructureState = {
+  status: "idle" | "loading" | "ready" | "error";
+  detail?: string;
 };
 
 type ToastState = {
@@ -186,11 +195,13 @@ async function requestJson<T>(path: string): Promise<T> {
 }
 
 export default function RepoBrowser() {
+  const router = useRouter();
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [selectedRepository, setSelectedRepository] = useState<Repository | null>(null);
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<FileContent | null>(null);
+  const [configStructure, setConfigStructure] = useState<ConfigStructureState>({ status: "idle" });
   const [repoSearch, setRepoSearch] = useState("");
   const [extensionFilter, setExtensionFilter] = useState("all");
   const [loadingRepos, setLoadingRepos] = useState(true);
@@ -288,6 +299,7 @@ export default function RepoBrowser() {
     async function loadFile() {
       if (!selectedRepository || !selectedPath) {
         setFileContent(null);
+        setConfigStructure({ status: "idle" });
         return;
       }
 
@@ -326,6 +338,45 @@ export default function RepoBrowser() {
       active = false;
     };
   }, [selectedRepository, selectedPath]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadStructure() {
+      if (!selectedRepository || !selectedPath) {
+        setConfigStructure({ status: "idle" });
+        return;
+      }
+
+      setConfigStructure({ status: "loading" });
+
+      try {
+        const response = await getConfigTree(selectedRepository.full_name, selectedPath);
+        if (!active) {
+          return;
+        }
+        console.log("config-tree", response);
+        setConfigStructure({
+          status: "ready",
+          detail: `${response.tree.children.length} top-level field${response.tree.children.length === 1 ? "" : "s"}`,
+        });
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setConfigStructure({
+          status: "error",
+          detail: error instanceof Error ? error.message : "Unexpected API error.",
+        });
+      }
+    }
+
+    void loadStructure();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPath, selectedRepository]);
 
   const visibleRepositories = useMemo(() => {
     const value = repoSearch.trim().toLowerCase();
@@ -492,7 +543,47 @@ export default function RepoBrowser() {
                 <strong>{fileContent.path}</strong>
                 <span style={{ color: "var(--muted)" }}>{fileContent.repository}</span>
               </div>
+              <div style={panelStyles.callout}>
+                <strong>Config structure</strong>
+                <span style={{ color: "var(--muted)" }}>
+                  {configStructure.status === "loading"
+                    ? "Fetching normalized structure for the editor."
+                    : configStructure.status === "ready"
+                      ? configStructure.detail
+                      : configStructure.status === "error"
+                        ? configStructure.detail
+                        : "Select a file to begin parsing."}
+                </span>
+              </div>
               <pre style={panelStyles.pre}>{fileContent.content}</pre>
+              <div style={panelStyles.actions}>
+                <button
+                  onClick={() => {
+                    if (!selectedRepository || !selectedPath) {
+                      return;
+                    }
+                    router.push(
+                      `/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
+                        selectedPath
+                      )}`
+                    );
+                  }}
+                  style={panelStyles.primaryAction}
+                  type="button"
+                >
+                  Open in config editor
+                </button>
+                {selectedRepository && selectedPath ? (
+                  <Link
+                    href={`/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
+                      selectedPath
+                    )}`}
+                    style={panelStyles.secondaryAction}
+                  >
+                    Open dedicated route
+                  </Link>
+                ) : null}
+              </div>
             </div>
           ) : (
             <div style={panelStyles.emptyState}>
@@ -661,9 +752,36 @@ const panelStyles = {
     display: "grid",
     gap: 12,
   },
+  callout: {
+    display: "grid",
+    gap: 4,
+    padding: 14,
+    borderRadius: "var(--radius-md)",
+    background: "rgba(15, 118, 110, 0.08)",
+    border: "1px solid rgba(15, 118, 110, 0.18)",
+  },
   viewerHeader: {
     display: "grid",
     gap: 4,
+  },
+  actions: {
+    display: "flex",
+    flexWrap: "wrap" as const,
+    gap: 10,
+  },
+  primaryAction: {
+    border: 0,
+    borderRadius: 999,
+    padding: "12px 18px",
+    background: "var(--accent)",
+    color: "#f7f4ec",
+    cursor: "pointer",
+  },
+  secondaryAction: {
+    textDecoration: "none",
+    borderRadius: 999,
+    padding: "12px 18px",
+    border: "1px solid var(--line)",
   },
   pre: {
     margin: 0,
