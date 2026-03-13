@@ -168,7 +168,18 @@ async function requestJson<T>(path: string): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed with status ${response.status}`);
+    let detail = `API request failed with status ${response.status}`;
+
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (payload.detail) {
+        detail = payload.detail;
+      }
+    } catch {
+      // Keep the default message when the backend does not return JSON.
+    }
+
+    throw new Error(detail);
   }
 
   return response.json() as Promise<T>;
@@ -340,8 +351,8 @@ export default function RepoBrowser() {
           <p style={pageStyles.eyebrow}>Phase 2</p>
           <h1 style={pageStyles.title}>Repository browser shell</h1>
           <p style={pageStyles.subtitle}>
-            Browse mocked GitHub repositories, filter supported config files, and preview file
-            contents before the editor phase lands.
+            Browse live GitHub repositories available to your configured token, filter supported
+            config files, and preview file contents before the editor phase lands.
           </p>
         </div>
         <div style={pageStyles.heroCard}>
@@ -378,12 +389,12 @@ export default function RepoBrowser() {
           {loadingRepos ? (
             <div style={panelStyles.emptyState}>
               <strong>Loading repository list</strong>
-              <span>Fetching mocked GitHub repositories from the API.</span>
+              <span>Fetching your live GitHub repositories from the API.</span>
             </div>
           ) : visibleRepositories.length === 0 ? (
             <div style={panelStyles.emptyState}>
               <strong>No repositories match</strong>
-              <span>Adjust the search input to see mocked repos again.</span>
+              <span>Adjust the search input or confirm the token can access repositories.</span>
             </div>
           ) : (
             <div style={panelStyles.stack}>
@@ -443,7 +454,7 @@ export default function RepoBrowser() {
           {loadingTree ? (
             <div style={panelStyles.emptyState}>
               <strong>Loading tree</strong>
-              <span>Building the repository file tree for the selected repo.</span>
+              <span>Building the live repository file tree for the selected repo.</span>
             </div>
           ) : visibleTree.length === 0 ? (
             <div style={panelStyles.emptyState}>
@@ -473,7 +484,7 @@ export default function RepoBrowser() {
           {loadingFile ? (
             <div style={panelStyles.emptyState}>
               <strong>Loading file content</strong>
-              <span>Fetching the selected file from the mocked API.</span>
+              <span>Fetching the selected file from the GitHub API.</span>
             </div>
           ) : fileContent ? (
             <div style={panelStyles.viewer}>
