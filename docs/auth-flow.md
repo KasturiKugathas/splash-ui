@@ -1,5 +1,7 @@
 # Authentication Flow (Phase 1)
 
+See [GitHub OAuth Scopes](./github-scopes.md) for the minimum repository access Splash-UI needs during the repository browser phase.
+
 ```mermaid
 sequenceDiagram
   autonumber
