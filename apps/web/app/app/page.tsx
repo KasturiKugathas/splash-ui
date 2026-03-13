@@ -36,8 +36,8 @@ export default function ProtectedAppPage() {
         </p>
         <h1 style={{ margin: 0, fontSize: "clamp(2.2rem, 4vw, 3.5rem)" }}>Splash-UI workspace</h1>
         <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.7 }}>
-          Phase 2 adds the first repository browser shell. Continue into the mocked GitHub
-          workspace to inspect repositories, browse supported config files, and preview content.
+          Phase 2 adds the first repository browser shell. Continue into the GitHub workspace to
+          inspect accessible repositories, browse supported config files, and preview content.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           <Link

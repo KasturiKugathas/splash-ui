@@ -37,8 +37,8 @@ export default function HomePage() {
           Govern config changes through a safer GitHub workflow.
         </h1>
         <p style={{ margin: 0, color: "var(--muted)", maxWidth: 720, lineHeight: 1.7 }}>
-          The local scaffold now includes mocked auth and a repository browser shell for JSON, YAML,
-          and XML configuration files.
+          The local scaffold now includes auth placeholders and a live repository browser shell for
+          JSON, YAML, and XML configuration files.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           <Link
