@@ -26,7 +26,7 @@ def build_config_tree(file_content: FileContent) -> ConfigNode:
     return normalize_config(key=PurePosixPath(file_content["path"]).name, value=parsed, path="$")
 
 
-def serialize_config_tree(path: str, tree: ConfigNode) -> str:
+def serialize_config_tree(path: str, tree: ConfigNode, original_content: str | None = None) -> str:
     parser = resolve_parser(path)
     if parser.name == "xml":
         raise GitHubClientError(
@@ -34,7 +34,11 @@ def serialize_config_tree(path: str, tree: ConfigNode) -> str:
             status_code=400,
         )
 
-    return parser.serialize(denormalize_config(tree))
+    value = denormalize_config(tree)
+    if parser.name == "yaml" and original_content is not None and hasattr(parser, "serialize_round_trip"):
+        return parser.serialize_round_trip(original_content, value)
+
+    return parser.serialize(value)
 
 
 def denormalize_config(node: ConfigNode) -> Any:

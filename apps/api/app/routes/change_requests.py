@@ -14,6 +14,7 @@ from app.services.github_client import (
     create_branch,
     create_pull_request,
     get_default_branch,
+    get_file_content,
 )
 
 router = APIRouter(tags=["change-requests"])
@@ -54,7 +55,12 @@ def open_pull_request(change_request_id: str) -> dict[str, object]:
         raise HTTPException(status_code=404, detail="Change request not found.")
 
     try:
-        serialized_content = serialize_config_tree(change_request.path, change_request.tree)
+        original_file = get_file_content(change_request.repository, change_request.path)
+        serialized_content = serialize_config_tree(
+            change_request.path,
+            change_request.tree,
+            original_content=original_file["content"],
+        )
         base_branch = get_default_branch(change_request.repository)
         branch_name = f"splash-ui/{change_request.id}"
 

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from io import StringIO
 from typing import Any
 
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
 import yaml
 
 BOOLEAN_LIKE_VALUES = {"true", "false", "yes", "no", "on", "off", "null", "~"}
@@ -45,3 +48,37 @@ class YamlParserAdapter:
 
     def serialize(self, value: Any) -> str:
         return yaml.dump(value, Dumper=SplashYamlDumper, sort_keys=False)
+
+    def serialize_round_trip(self, original_content: str, value: Any) -> str:
+        yaml_rt = YAML()
+        yaml_rt.preserve_quotes = True
+        yaml_rt.width = 4096
+        document = yaml_rt.load(original_content)
+        merged_document = _merge_value(document, value)
+
+        stream = StringIO()
+        yaml_rt.dump(merged_document, stream)
+        return stream.getvalue()
+
+
+def _merge_value(original: Any, updated: Any) -> Any:
+    if isinstance(original, CommentedMap) and isinstance(updated, dict):
+        for key, updated_value in updated.items():
+            if key in original:
+                original[key] = _merge_value(original[key], updated_value)
+            else:
+                original[key] = updated_value
+        return original
+
+    if isinstance(original, CommentedSeq) and isinstance(updated, list):
+        for index, updated_value in enumerate(updated):
+            if index < len(original):
+                original[index] = _merge_value(original[index], updated_value)
+            else:
+                original.append(updated_value)
+        return original
+
+    if isinstance(updated, str) and isinstance(original, str):
+        return type(original)(updated)
+
+    return updated
