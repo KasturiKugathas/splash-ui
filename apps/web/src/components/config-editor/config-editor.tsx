@@ -4,6 +4,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import ConfigTreeRenderer from "./config-tree-renderer";
+import {
+  createChangeRequest,
+  openPullRequest,
+  type ChangeRequest,
+} from "../../lib/change-requests";
 import { getConfigTree, type ConfigTreeResponse } from "../../lib/config-tree";
 import type { ConfigNode } from "../../lib/config-node";
 
@@ -33,6 +38,9 @@ export default function ConfigEditor({
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"structure" | "draft">("structure");
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [changeRequest, setChangeRequest] = useState<ChangeRequest | null>(null);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [openingPr, setOpeningPr] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   const isDirty =
@@ -51,8 +59,64 @@ export default function ConfigEditor({
     setSaveMessage(null);
   };
 
-  const handleSaveDraft = () => {
-    setSaveMessage(`Save draft stub triggered for ${path}. Persistence will be added in a later phase.`);
+  const handleSaveDraft = async () => {
+    if (!draftTree) {
+      return null;
+    }
+
+    setSavingDraft(true);
+    setToast(null);
+
+    try {
+      const nextChangeRequest = await createChangeRequest(repository, path, draftTree);
+      setChangeRequest(nextChangeRequest);
+      setSaveMessage(`Draft ${nextChangeRequest.id} saved for ${path}.`);
+      return nextChangeRequest;
+    } catch (error) {
+      setToast({
+        title: "Could not save draft",
+        detail: error instanceof Error ? error.message : "Unexpected API error.",
+      });
+      return null;
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleCreatePullRequest = async () => {
+    if (!draftTree || !isDirty) {
+      return;
+    }
+
+    setOpeningPr(true);
+    setToast(null);
+
+    try {
+      const draft = changeRequest ?? (await createChangeRequest(repository, path, draftTree));
+      if (!draft) {
+        return;
+      }
+
+      setChangeRequest(draft);
+      const nextChangeRequest = await openPullRequest(draft.id);
+      setChangeRequest(nextChangeRequest);
+      setSaveMessage(`Pull request #${nextChangeRequest.pull_request_number} opened.`);
+      setResponse((currentResponse) =>
+        currentResponse && draftTree
+          ? {
+              ...currentResponse,
+              tree: draftTree,
+            }
+          : currentResponse
+      );
+    } catch (error) {
+      setToast({
+        title: "Could not create pull request",
+        detail: error instanceof Error ? error.message : "Unexpected API error.",
+      });
+    } finally {
+      setOpeningPr(false);
+    }
   };
 
   useEffect(() => {
@@ -75,6 +139,7 @@ export default function ConfigEditor({
         console.log("config-tree", nextResponse);
         setResponse(nextResponse);
         setDraftTree(nextResponse.tree);
+        setChangeRequest(null);
         setSaveMessage(null);
       } catch (error) {
         if (!active) {
@@ -135,11 +200,11 @@ export default function ConfigEditor({
       <section style={pageStyles.card}>
         <div style={pageStyles.header}>
           <div style={{ display: "grid", gap: 10 }}>
-            <p style={pageStyles.eyebrow}>Phase 2.1</p>
+            <p style={pageStyles.eyebrow}>Phase 4</p>
             <h1 style={pageStyles.title}>Config editor</h1>
             <p style={pageStyles.subtitle}>
-              Review the normalized config tree, then adjust scalar values in place. Persistence is
-              not wired yet; this phase focuses on parsing and rendering.
+              Review the normalized config tree, adjust scalar values, then create a branch, commit,
+              and pull request for JSON/YAML changes.
             </p>
           </div>
           <Link href={`/repositories`} style={pageStyles.secondaryLink}>
@@ -208,16 +273,63 @@ export default function ConfigEditor({
                 >
                   Reset changes
                 </button>
-                <button onClick={handleSaveDraft} style={pageStyles.primaryButton} type="button">
-                  Save draft
+                <button
+                  disabled={!draftTree || savingDraft}
+                  onClick={() => void handleSaveDraft()}
+                  style={{
+                    ...pageStyles.secondaryButton,
+                    ...(savingDraft ? pageStyles.buttonDisabled : null),
+                  }}
+                  type="button"
+                >
+                  {savingDraft ? "Saving draft..." : "Save draft"}
+                </button>
+                <button
+                  disabled={!isDirty || !draftTree || openingPr}
+                  onClick={() => void handleCreatePullRequest()}
+                  style={{
+                    ...pageStyles.primaryButton,
+                    ...(!isDirty || openingPr ? pageStyles.buttonDisabled : null),
+                  }}
+                  type="button"
+                >
+                  {openingPr ? "Creating PR..." : "Create PR"}
                 </button>
               </div>
             </div>
 
             <section style={pageStyles.validationCard}>
               <strong>Validation</strong>
-              <span>{validationMessage}</span>
+              <span>
+                {path.endsWith(".xml")
+                  ? "XML files are read-only for writeback until safe XML serialization is implemented."
+                  : validationMessage}
+              </span>
             </section>
+
+            {changeRequest ? (
+              <section style={pageStyles.statusCard}>
+                <div style={pageStyles.statusHeader}>
+                  <div>
+                    <strong>PR workflow</strong>
+                    <span>State: {changeRequest.state}</span>
+                  </div>
+                  {changeRequest.pull_request_url ? (
+                    <a href={changeRequest.pull_request_url} rel="noreferrer" style={pageStyles.linkButton} target="_blank">
+                      Open PR #{changeRequest.pull_request_number}
+                    </a>
+                  ) : null}
+                </div>
+                <ol style={pageStyles.timeline}>
+                  {changeRequest.events.map((event) => (
+                    <li key={`${event.created_at}-${event.label}`} style={pageStyles.timelineItem}>
+                      <strong>{event.label}</strong>
+                      <span>{event.detail}</span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ) : null}
 
             {draftTree && draftTree.children.length > 0 ? (
               activeTab === "structure" ? (
@@ -387,6 +499,32 @@ const pageStyles = {
     border: "1px solid rgba(15, 118, 110, 0.16)",
     background: "rgba(15, 118, 110, 0.07)",
     color: "var(--muted)",
+  },
+  statusCard: {
+    display: "grid",
+    gap: 12,
+    padding: 16,
+    borderRadius: "var(--radius-lg)",
+    border: "1px solid rgba(15, 118, 110, 0.2)",
+    background: "rgba(255,255,255,0.72)",
+  },
+  statusHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "start",
+    flexWrap: "wrap" as const,
+  },
+  timeline: {
+    display: "grid",
+    gap: 10,
+    margin: 0,
+    paddingLeft: 20,
+    color: "var(--muted)",
+  },
+  timelineItem: {
+    display: "grid",
+    gap: 4,
   },
   debugPanel: {
     display: "grid",

@@ -62,17 +62,26 @@ def _get_config() -> GitHubConfig:
     return GitHubConfig(token=token, api_base_url=api_base_url)
 
 
-def _request_json(path: str, query: dict[str, str] | None = None) -> Any:
+def _request_json(
+    path: str,
+    query: dict[str, str] | None = None,
+    method: str = "GET",
+    payload: dict[str, Any] | None = None,
+) -> Any:
     config = _get_config()
     url = f"{config.api_base_url}{path}"
     if query:
         url = f"{url}?{parse.urlencode(query)}"
 
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = request.Request(
         url,
+        data=data,
+        method=method,
         headers={
             "Accept": "application/vnd.github+json",
             "Authorization": f"Bearer {config.token}",
+            "Content-Type": "application/json",
             "User-Agent": "splash-ui-local-dev",
             "X-GitHub-Api-Version": "2022-11-28",
         },
@@ -229,4 +238,91 @@ def get_file_content(repo_full_name: str, path: str) -> FileContent:
         "encoding": "utf-8",
         "language": _language_from_path(path),
         "content": content,
+    }
+
+
+def get_default_branch(repo_full_name: str) -> str:
+    owner, repo = repo_full_name.split("/", 1)
+    repository = _request_json(f"/repos/{owner}/{repo}")
+    return repository.get("default_branch") or "main"
+
+
+def create_branch(repo_full_name: str, branch_name: str, base_branch: str | None = None) -> dict[str, str]:
+    owner, repo = repo_full_name.split("/", 1)
+    source_branch = base_branch or get_default_branch(repo_full_name)
+    ref_payload = _request_json(
+        f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(source_branch, safe='')}"
+    )
+    source_sha = ref_payload["object"]["sha"]
+
+    try:
+        created_ref = _request_json(
+            f"/repos/{owner}/{repo}/git/refs",
+            method="POST",
+            payload={
+                "ref": f"refs/heads/{branch_name}",
+                "sha": source_sha,
+            },
+        )
+    except GitHubClientError as exc:
+        if "Reference already exists" not in str(exc):
+            raise
+        existing_ref = _request_json(
+            f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(branch_name, safe='')}"
+        )
+        return {"name": branch_name, "sha": existing_ref["object"]["sha"]}
+
+    return {"name": branch_name, "sha": created_ref["object"]["sha"]}
+
+
+def commit_file(
+    repo_full_name: str,
+    path: str,
+    branch_name: str,
+    content: str,
+    message: str,
+) -> dict[str, str]:
+    owner, repo = repo_full_name.split("/", 1)
+    current_file = _request_json(
+        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
+        {"ref": branch_name},
+    )
+    response = _request_json(
+        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
+        method="PUT",
+        payload={
+            "message": message,
+            "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+            "sha": current_file["sha"],
+            "branch": branch_name,
+        },
+    )
+    return {
+        "commit_sha": response["commit"]["sha"],
+        "content_sha": response["content"]["sha"],
+    }
+
+
+def create_pull_request(
+    repo_full_name: str,
+    branch_name: str,
+    base_branch: str,
+    title: str,
+    body: str,
+) -> dict[str, str]:
+    owner, repo = repo_full_name.split("/", 1)
+    response = _request_json(
+        f"/repos/{owner}/{repo}/pulls",
+        method="POST",
+        payload={
+            "title": title,
+            "head": branch_name,
+            "base": base_branch,
+            "body": body,
+        },
+    )
+    return {
+        "number": str(response["number"]),
+        "url": response["html_url"],
+        "state": response["state"],
     }
