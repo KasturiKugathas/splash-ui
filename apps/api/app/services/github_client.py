@@ -62,12 +62,12 @@ def _get_config() -> GitHubConfig:
 
 
 def _resolve_token(token: str | None) -> str:
-    resolved_token = (token or os.environ.get("GITHUB_TOKEN", "")).strip()
+    resolved_token = (token or "").strip()
     if resolved_token:
         return resolved_token
 
     raise GitHubClientError(
-        "Sign in with GitHub or set GITHUB_TOKEN before starting the API.",
+        "Sign in with GitHub to continue.",
         status_code=401,
     )
 
@@ -105,7 +105,7 @@ def _request_json(
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         if exc.code == 401:
-            raise GitHubClientError("GITHUB_TOKEN is invalid or expired.", status_code=401) from exc
+            raise GitHubClientError("Your GitHub session is invalid or expired. Sign in again.", status_code=401) from exc
         if exc.code == 403:
             raise GitHubClientError(
                 "GitHub denied access. Check token scopes and repository permissions.",

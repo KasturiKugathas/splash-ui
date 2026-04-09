@@ -29,5 +29,3 @@ uvicorn app.main:app --reload
 ```
 
 Use `localhost` for both apps in local development so the auth session cookie can be shared across the web app and API.
-
-`GITHUB_TOKEN` still works as a local fallback for direct API access, but the primary app flow is now GitHub OAuth login.
