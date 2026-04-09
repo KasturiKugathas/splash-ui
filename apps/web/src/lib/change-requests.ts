@@ -1,4 +1,5 @@
 import type { ConfigNode } from "./config-node";
+import { requestJson } from "./api";
 
 export type WorkflowEvent = {
   label: string;
@@ -18,39 +19,12 @@ export type ChangeRequest = {
   events: WorkflowEvent[];
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
-
-async function requestJson<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-  });
-
-  if (!response.ok) {
-    let detail = `API request failed with status ${response.status}`;
-
-    try {
-      const payload = (await response.json()) as { detail?: string };
-      if (payload.detail) {
-        detail = payload.detail;
-      }
-    } catch {
-      // Keep the default message when the backend does not return JSON.
-    }
-
-    throw new Error(detail);
-  }
-
-  return response.json() as Promise<T>;
-}
-
 export function createChangeRequest(repository: string, path: string, tree: ConfigNode) {
   return requestJson<ChangeRequest>("/change-requests", {
     method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ repository, path, tree }),
   });
 }

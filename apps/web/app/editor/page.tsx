@@ -1,4 +1,4 @@
-import ConfigEditor from "../../src/components/config-editor/config-editor";
+import { redirect } from "next/navigation";
 
 export default async function EditorPage({
   searchParams,
@@ -6,6 +6,8 @@ export default async function EditorPage({
   searchParams: Promise<{ repo?: string; path?: string }>;
 }) {
   const params = await searchParams;
-
-  return <ConfigEditor repository={params.repo ?? ""} path={params.path ?? ""} />;
+  const repo = params.repo ? `repo=${encodeURIComponent(params.repo)}` : "";
+  const path = params.path ? `path=${encodeURIComponent(params.path)}` : "";
+  const query = [repo, path].filter(Boolean).join("&");
+  redirect(`/app/editor${query ? `?${query}` : ""}`);
 }

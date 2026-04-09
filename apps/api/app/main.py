@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -8,9 +10,17 @@ from app.routes.repos import router as repos_router
 from app.routes.webhooks import router as webhooks_router
 
 app = FastAPI(title="Splash-UI API")
+allowed_origins = {
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+}
+configured_web_base_url = os.environ.get("SPLASH_UI_WEB_BASE_URL", "").rstrip("/")
+if configured_web_base_url:
+    allowed_origins.add(configured_web_base_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=sorted(allowed_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

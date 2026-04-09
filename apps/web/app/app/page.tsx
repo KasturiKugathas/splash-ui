@@ -41,7 +41,7 @@ export default function ProtectedAppPage() {
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           <Link
-            href="/repositories"
+            href="/app/repositories"
             style={{
               textDecoration: "none",
               borderRadius: 999,

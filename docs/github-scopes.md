@@ -17,11 +17,17 @@ Splash-UI needs the minimum scopes required to read repositories and open pull r
 
 ## Local Development
 
-The current local repository browser reads live GitHub data from a personal access token exposed as `GITHUB_TOKEN` on the API process.
+The preferred local flow now uses GitHub OAuth through a GitHub OAuth App. Configure these variables before starting the API:
 
 ```bash
-export GITHUB_TOKEN=your_github_token_here
+export GITHUB_OAUTH_CLIENT_ID=your_github_oauth_app_client_id
+export GITHUB_OAUTH_CLIENT_SECRET=your_github_oauth_app_client_secret
+export SPLASH_UI_SESSION_SECRET=replace_with_a_long_random_string
+export SPLASH_UI_API_BASE_URL=http://localhost:8000
+export SPLASH_UI_WEB_BASE_URL=http://localhost:3000
 uvicorn app.main:app --reload
 ```
 
-Without `GITHUB_TOKEN`, the API returns an explicit error and the repositories page will not load.
+Use `localhost` for both apps in local development so the auth session cookie can be shared across the web app and API.
+
+`GITHUB_TOKEN` still works as a local fallback for direct API access, but the primary app flow is now GitHub OAuth login.

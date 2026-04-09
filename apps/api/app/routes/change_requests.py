@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.models.change_request import ChangeRequest, WorkflowEvent
+from app.services.auth import AuthSession, require_auth_session
 from app.services.config_parser import serialize_config_tree
 from app.services.config_types import ConfigNode
 from app.services.github_client import (
@@ -32,7 +33,10 @@ def _to_response(change_request: ChangeRequest) -> dict[str, object]:
 
 
 @router.post("/change-requests")
-def create_change_request(payload: ChangeRequestPayload) -> dict[str, object]:
+def create_change_request(
+    payload: ChangeRequestPayload,
+    _session: AuthSession = Depends(require_auth_session),
+) -> dict[str, object]:
     change_request = ChangeRequest(
         repository=payload.repository,
         path=payload.path,
@@ -49,22 +53,29 @@ def create_change_request(payload: ChangeRequestPayload) -> dict[str, object]:
 
 
 @router.post("/change-requests/{change_request_id}/open-pr")
-def open_pull_request(change_request_id: str) -> dict[str, object]:
+def open_pull_request(
+    change_request_id: str,
+    session: AuthSession = Depends(require_auth_session),
+) -> dict[str, object]:
     change_request = CHANGE_REQUESTS.get(change_request_id)
     if change_request is None:
         raise HTTPException(status_code=404, detail="Change request not found.")
 
     try:
-        original_file = get_file_content(change_request.repository, change_request.path)
+        original_file = get_file_content(
+            change_request.repository,
+            change_request.path,
+            token=session.access_token,
+        )
         serialized_content = serialize_config_tree(
             change_request.path,
             change_request.tree,
             original_content=original_file["content"],
         )
-        base_branch = get_default_branch(change_request.repository)
+        base_branch = get_default_branch(change_request.repository, token=session.access_token)
         branch_name = f"splash-ui/{change_request.id}"
 
-        create_branch(change_request.repository, branch_name, base_branch)
+        create_branch(change_request.repository, branch_name, base_branch, token=session.access_token)
         change_request.state = "branch_created"
         change_request.branch = branch_name
         change_request.events.append(
@@ -77,6 +88,7 @@ def open_pull_request(change_request_id: str) -> dict[str, object]:
             branch_name=branch_name,
             content=serialized_content,
             message=f"Splash-UI update {change_request.path}",
+            token=session.access_token,
         )
         change_request.state = "committed"
         change_request.events.append(
@@ -92,6 +104,7 @@ def open_pull_request(change_request_id: str) -> dict[str, object]:
             base_branch=base_branch,
             title=f"Update {change_request.path}",
             body=f"Created by Splash-UI for change request `{change_request.id}`.",
+            token=session.access_token,
         )
         change_request.state = "pr_opened"
         change_request.pull_request_url = pr["url"]
@@ -107,7 +120,10 @@ def open_pull_request(change_request_id: str) -> dict[str, object]:
 
 
 @router.post("/change-requests/{change_request_id}/approve")
-def approve_change_request(change_request_id: str) -> dict[str, object]:
+def approve_change_request(
+    change_request_id: str,
+    _session: AuthSession = Depends(require_auth_session),
+) -> dict[str, object]:
     change_request = CHANGE_REQUESTS.get(change_request_id)
     if change_request is None:
         raise HTTPException(status_code=404, detail="Change request not found.")
@@ -120,7 +136,10 @@ def approve_change_request(change_request_id: str) -> dict[str, object]:
 
 
 @router.post("/change-requests/{change_request_id}/request-changes")
-def request_change_request_changes(change_request_id: str) -> dict[str, object]:
+def request_change_request_changes(
+    change_request_id: str,
+    _session: AuthSession = Depends(require_auth_session),
+) -> dict[str, object]:
     change_request = CHANGE_REQUESTS.get(change_request_id)
     if change_request is None:
         raise HTTPException(status_code=404, detail="Change request not found.")

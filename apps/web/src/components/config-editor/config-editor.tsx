@@ -186,7 +186,7 @@ export default function ConfigEditor({
           <div style={pageStyles.emptyState}>
             <strong>No file selected</strong>
             <span>Open the repository browser first and choose a supported config file.</span>
-            <Link href="/repositories" style={pageStyles.linkButton}>
+            <Link href="/app/repositories" style={pageStyles.linkButton}>
               Back to repositories
             </Link>
           </div>
@@ -207,7 +207,7 @@ export default function ConfigEditor({
               and pull request for JSON/YAML changes.
             </p>
           </div>
-          <Link href={`/repositories`} style={pageStyles.secondaryLink}>
+          <Link href={`/app/repositories`} style={pageStyles.secondaryLink}>
             Back to repositories
           </Link>
         </div>
