@@ -1,29 +1,76 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+
+import {
+  getAuthSession,
+  getGithubLoginUrl,
+  logoutSession,
+  type AuthUser,
+} from "../lib/auth";
 
 type AuthState = {
-  isAuthenticated: boolean;
-  login: () => void;
-  logout: () => void;
+  status: "loading" | "authenticated" | "anonymous";
+  user: AuthUser | null;
+  error: string | null;
+  login: (nextPath?: string) => void;
+  logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [status, setStatus] = useState<AuthState["status"]>("loading");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const value = useMemo(
-    () => ({
-      isAuthenticated,
-      login: () => setIsAuthenticated(true),
-      logout: () => setIsAuthenticated(false),
-    }),
-    [isAuthenticated]
+  async function refresh() {
+    setError(null);
+
+    try {
+      const session = await getAuthSession();
+      if (session.authenticated && session.user) {
+        setUser(session.user);
+        setStatus("authenticated");
+        return;
+      }
+
+      setUser(null);
+      setStatus("anonymous");
+    } catch (nextError) {
+      setUser(null);
+      setStatus("anonymous");
+      setError(nextError instanceof Error ? nextError.message : "Unexpected auth error.");
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        status,
+        user,
+        error,
+        login: (nextPath = "/app") => {
+          window.location.href = getGithubLoginUrl(nextPath);
+        },
+        logout: async () => {
+          await logoutSession();
+          setUser(null);
+          setStatus("anonymous");
+          window.location.href = "/login";
+        },
+        refresh,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
   );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

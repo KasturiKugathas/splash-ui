@@ -41,38 +41,59 @@ class FileContent(TypedDict):
     content: str
 
 
+class AuthenticatedGitHubUser(TypedDict):
+    login: str
+    name: str
+    avatar_url: str
+    html_url: str
+
+
 SUPPORTED_EXTENSIONS = {".json", ".yaml", ".yml", ".xml"}
 
 
 @dataclass(frozen=True)
 class GitHubConfig:
-    token: str
     api_base_url: str
 
 
 def _get_config() -> GitHubConfig:
-    token = os.environ.get("GITHUB_TOKEN", "").strip()
-    if not token:
-        raise GitHubClientError(
-            "Set GITHUB_TOKEN before starting the API so Splash-UI can read your repositories.",
-            status_code=500,
-        )
-
     api_base_url = os.environ.get("GITHUB_API_BASE_URL", "https://api.github.com").rstrip("/")
-    return GitHubConfig(token=token, api_base_url=api_base_url)
+    return GitHubConfig(api_base_url=api_base_url)
 
 
-def _request_json(path: str, query: dict[str, str] | None = None) -> Any:
+def _resolve_token(token: str | None) -> str:
+    resolved_token = (token or "").strip()
+    if resolved_token:
+        return resolved_token
+
+    raise GitHubClientError(
+        "Sign in with GitHub to continue.",
+        status_code=401,
+    )
+
+
+def _request_json(
+    path: str,
+    query: dict[str, str] | None = None,
+    method: str = "GET",
+    payload: dict[str, Any] | None = None,
+    token: str | None = None,
+) -> Any:
     config = _get_config()
+    resolved_token = _resolve_token(token)
     url = f"{config.api_base_url}{path}"
     if query:
         url = f"{url}?{parse.urlencode(query)}"
 
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = request.Request(
         url,
+        data=data,
+        method=method,
         headers={
             "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {config.token}",
+            "Authorization": f"Bearer {resolved_token}",
+            "Content-Type": "application/json",
             "User-Agent": "splash-ui-local-dev",
             "X-GitHub-Api-Version": "2022-11-28",
         },
@@ -84,7 +105,7 @@ def _request_json(path: str, query: dict[str, str] | None = None) -> Any:
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         if exc.code == 401:
-            raise GitHubClientError("GITHUB_TOKEN is invalid or expired.", status_code=401) from exc
+            raise GitHubClientError("Your GitHub session is invalid or expired. Sign in again.", status_code=401) from exc
         if exc.code == 403:
             raise GitHubClientError(
                 "GitHub denied access. Check token scopes and repository permissions.",
@@ -115,8 +136,8 @@ def _supported_path(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() in SUPPORTED_EXTENSIONS
 
 
-def list_repos() -> list[Repository]:
-    payload = _request_json("/user/repos", {"per_page": "100", "sort": "updated"})
+def list_repos(token: str | None = None) -> list[Repository]:
+    payload = _request_json("/user/repos", {"per_page": "100", "sort": "updated"}, token=token)
     repositories: list[Repository] = []
 
     for repo in payload:
@@ -136,15 +157,19 @@ def list_repos() -> list[Repository]:
     return repositories
 
 
-def get_repo_tree(repo_full_name: str) -> list[TreeNode]:
+def get_repo_tree(repo_full_name: str, token: str | None = None) -> list[TreeNode]:
     owner, repo = repo_full_name.split("/", 1)
-    repository = _request_json(f"/repos/{owner}/{repo}")
+    repository = _request_json(f"/repos/{owner}/{repo}", token=token)
     branch = repository.get("default_branch") or "main"
-    branch_payload = _request_json(f"/repos/{owner}/{repo}/branches/{parse.quote(branch, safe='')}")
+    branch_payload = _request_json(
+        f"/repos/{owner}/{repo}/branches/{parse.quote(branch, safe='')}",
+        token=token,
+    )
     tree_sha = branch_payload["commit"]["commit"]["tree"]["sha"]
     tree_payload = _request_json(
         f"/repos/{owner}/{repo}/git/trees/{tree_sha}",
         {"recursive": "1"},
+        token=token,
     )
 
     directories: dict[str, TreeNode] = {}
@@ -208,13 +233,14 @@ def get_repo_tree(repo_full_name: str) -> list[TreeNode]:
     return sort_nodes(root_nodes)
 
 
-def get_file_content(repo_full_name: str, path: str) -> FileContent:
+def get_file_content(repo_full_name: str, path: str, token: str | None = None) -> FileContent:
     if not _supported_path(path):
         raise GitHubClientError("Only JSON, YAML, YML, and XML files are supported.", status_code=400)
 
     owner, repo = repo_full_name.split("/", 1)
     payload = _request_json(
-        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}"
+        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
+        token=token,
     )
 
     encoded_content = payload.get("content", "")
@@ -229,4 +255,114 @@ def get_file_content(repo_full_name: str, path: str) -> FileContent:
         "encoding": "utf-8",
         "language": _language_from_path(path),
         "content": content,
+    }
+
+
+def get_default_branch(repo_full_name: str, token: str | None = None) -> str:
+    owner, repo = repo_full_name.split("/", 1)
+    repository = _request_json(f"/repos/{owner}/{repo}", token=token)
+    return repository.get("default_branch") or "main"
+
+
+def create_branch(
+    repo_full_name: str,
+    branch_name: str,
+    base_branch: str | None = None,
+    token: str | None = None,
+) -> dict[str, str]:
+    owner, repo = repo_full_name.split("/", 1)
+    source_branch = base_branch or get_default_branch(repo_full_name, token=token)
+    ref_payload = _request_json(
+        f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(source_branch, safe='')}",
+        token=token,
+    )
+    source_sha = ref_payload["object"]["sha"]
+
+    try:
+        created_ref = _request_json(
+            f"/repos/{owner}/{repo}/git/refs",
+            method="POST",
+            payload={
+                "ref": f"refs/heads/{branch_name}",
+                "sha": source_sha,
+            },
+            token=token,
+        )
+    except GitHubClientError as exc:
+        if "Reference already exists" not in str(exc):
+            raise
+        existing_ref = _request_json(
+            f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(branch_name, safe='')}",
+            token=token,
+        )
+        return {"name": branch_name, "sha": existing_ref["object"]["sha"]}
+
+    return {"name": branch_name, "sha": created_ref["object"]["sha"]}
+
+
+def commit_file(
+    repo_full_name: str,
+    path: str,
+    branch_name: str,
+    content: str,
+    message: str,
+    token: str | None = None,
+) -> dict[str, str]:
+    owner, repo = repo_full_name.split("/", 1)
+    current_file = _request_json(
+        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
+        {"ref": branch_name},
+        token=token,
+    )
+    response = _request_json(
+        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
+        method="PUT",
+        payload={
+            "message": message,
+            "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
+            "sha": current_file["sha"],
+            "branch": branch_name,
+        },
+        token=token,
+    )
+    return {
+        "commit_sha": response["commit"]["sha"],
+        "content_sha": response["content"]["sha"],
+    }
+
+
+def create_pull_request(
+    repo_full_name: str,
+    branch_name: str,
+    base_branch: str,
+    title: str,
+    body: str,
+    token: str | None = None,
+) -> dict[str, str]:
+    owner, repo = repo_full_name.split("/", 1)
+    response = _request_json(
+        f"/repos/{owner}/{repo}/pulls",
+        method="POST",
+        payload={
+            "title": title,
+            "head": branch_name,
+            "base": base_branch,
+            "body": body,
+        },
+        token=token,
+    )
+    return {
+        "number": str(response["number"]),
+        "url": response["html_url"],
+        "state": response["state"],
+    }
+
+
+def get_authenticated_user(token: str) -> AuthenticatedGitHubUser:
+    payload = _request_json("/user", token=token)
+    return {
+        "login": payload.get("login") or "",
+        "name": payload.get("name") or payload.get("login") or "",
+        "avatar_url": payload.get("avatar_url") or "",
+        "html_url": payload.get("html_url") or "",
     }

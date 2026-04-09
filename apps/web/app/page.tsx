@@ -37,8 +37,8 @@ export default function HomePage() {
           Govern config changes through a safer GitHub workflow.
         </h1>
         <p style={{ margin: 0, color: "var(--muted)", maxWidth: 720, lineHeight: 1.7 }}>
-          The local scaffold now includes auth placeholders and a live repository browser shell for
-          JSON, YAML, and XML configuration files.
+          The local scaffold now includes GitHub OAuth login, a live repository browser, and an
+          editor flow for JSON, YAML, and XML configuration files.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
           <Link
@@ -54,7 +54,7 @@ export default function HomePage() {
             Go to login
           </Link>
           <Link
-            href="/repositories"
+            href="/app/repositories"
             style={{
               textDecoration: "none",
               borderRadius: 999,
