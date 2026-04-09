@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import secrets
 from dataclasses import asdict, dataclass
@@ -157,6 +158,7 @@ def exchange_github_code(code: str) -> str:
     try:
         with request.urlopen(req, timeout=30) as response:
             data = response.read().decode("utf-8")
+            content_type = response.headers.get("Content-Type", "")
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise GitHubClientError(
@@ -165,6 +167,17 @@ def exchange_github_code(code: str) -> str:
         ) from exc
     except error.URLError as exc:
         raise GitHubClientError(f"Could not reach GitHub OAuth endpoint: {exc.reason}", status_code=502) from exc
+
+    if "application/json" in content_type:
+        payload = json.loads(data)
+        access_token = payload.get("access_token", "").strip()
+        if access_token:
+            return access_token
+        if payload.get("error_description"):
+            raise GitHubClientError(str(payload["error_description"]), status_code=400)
+        if payload.get("error"):
+            raise GitHubClientError(str(payload["error"]), status_code=400)
+        raise GitHubClientError("GitHub OAuth JSON response did not include an access token.", status_code=502)
 
     parsed = parse.parse_qs(data)
     if "access_token" in parsed:
