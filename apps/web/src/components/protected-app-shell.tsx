@@ -26,17 +26,10 @@ export default function ProtectedAppShell({ children }: { children: ReactNode })
 
   if (status === "loading") {
     return (
-      <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
-        <div
-          style={{
-            borderRadius: 24,
-            border: "1px solid var(--line)",
-            background: "var(--panel)",
-            padding: 24,
-            boxShadow: "var(--shadow)",
-          }}
-        >
-          Checking your session...
+      <main className="public-shell">
+        <div className="empty-state" style={{ width: "min(100%, 360px)" }}>
+          <strong>Checking your session</strong>
+          <span>Loading your GitHub workspace.</span>
         </div>
       </main>
     );
@@ -47,9 +40,9 @@ export default function ProtectedAppShell({ children }: { children: ReactNode })
   }
 
   return (
-    <>
+    <div className="app-shell">
       <AppShellHeader />
-      {children}
-    </>
+      <div className="app-main">{children}</div>
+    </div>
   );
 }

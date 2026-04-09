@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { getConfigTree } from "../lib/config-tree";
 import { requestJson } from "../lib/api";
+import { getConfigTree } from "../lib/config-tree";
 
 type Repository = {
   id: string;
@@ -44,11 +44,11 @@ type ToastState = {
 };
 
 const extensionOptions = [
-  { value: "all", label: "All supported files" },
-  { value: ".json", label: "JSON only" },
-  { value: ".yaml", label: "YAML only" },
-  { value: ".yml", label: "YML only" },
-  { value: ".xml", label: "XML only" },
+  { value: "all", label: "All files" },
+  { value: ".json", label: "JSON" },
+  { value: ".yaml", label: "YAML" },
+  { value: ".yml", label: "YML" },
+  { value: ".xml", label: "XML" },
 ];
 
 function matchesExtension(path: string, filter: string) {
@@ -66,12 +66,12 @@ function filterTree(nodes: TreeNode[], filter: string): TreeNode[] {
         return matchesExtension(node.path, filter) ? node : null;
       }
 
-      const filteredChildren = filterTree(node.children, filter);
-      if (filteredChildren.length === 0) {
+      const children = filterTree(node.children, filter);
+      if (children.length === 0) {
         return null;
       }
 
-      return { ...node, children: filteredChildren };
+      return { ...node, children };
     })
     .filter((node): node is TreeNode => node !== null);
 }
@@ -81,21 +81,20 @@ function flattenFiles(nodes: TreeNode[]): number {
     if (node.type === "file") {
       return count + 1;
     }
-
     return count + flattenFiles(node.children);
   }, 0);
 }
 
 function ErrorToast({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
   return (
-    <div style={toastStyles.shell} role="alert">
+    <div className="alert" role="alert">
+      <strong>{toast.title}</strong>
+      <span>{toast.detail}</span>
       <div>
-        <strong style={{ display: "block", marginBottom: 4 }}>{toast.title}</strong>
-        <span style={{ color: "var(--muted)" }}>{toast.detail}</span>
+        <button className="button-ghost" onClick={onDismiss} type="button">
+          Dismiss
+        </button>
       </div>
-      <button onClick={onDismiss} style={toastStyles.dismiss} type="button">
-        Dismiss
-      </button>
     </div>
   );
 }
@@ -110,7 +109,7 @@ function TreeBranch({
   selectedPath: string | null;
 }) {
   return (
-    <ul style={treeStyles.list}>
+    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: 6 }}>
       {nodes.map((node) => (
         <TreeNodeItem
           key={node.id}
@@ -137,12 +136,26 @@ function TreeNodeItem({
   if (node.type === "dir") {
     return (
       <li>
-        <button onClick={() => setOpen((current) => !current)} style={treeStyles.folderButton} type="button">
-          <span>{open ? "▾" : "▸"}</span>
+        <button
+          onClick={() => setOpen((current) => !current)}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            border: "0",
+            background: "transparent",
+            padding: "8px 10px",
+            borderRadius: "var(--radius-sm)",
+            color: "var(--ink-soft)",
+          }}
+          type="button"
+        >
+          <span style={{ color: "var(--muted)", minWidth: 12 }}>{open ? "▾" : "▸"}</span>
           <span>{node.name}</span>
         </button>
         {open ? (
-          <div style={{ marginLeft: 16 }}>
+          <div style={{ marginLeft: 12, paddingLeft: 10, borderLeft: "1px solid var(--line)" }}>
             <TreeBranch nodes={node.children} onSelect={onSelect} selectedPath={selectedPath} />
           </div>
         ) : null}
@@ -157,12 +170,20 @@ function TreeNodeItem({
       <button
         onClick={() => onSelect(node.path)}
         style={{
-          ...treeStyles.fileButton,
-          ...(selected ? treeStyles.fileButtonActive : null),
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          border: `1px solid ${selected ? "rgba(47, 107, 87, 0.24)" : "transparent"}`,
+          background: selected ? "var(--accent-soft)" : "transparent",
+          padding: "9px 10px",
+          borderRadius: "var(--radius-sm)",
+          color: selected ? "var(--accent-strong)" : "var(--ink-soft)",
+          textAlign: "left",
         }}
         type="button"
       >
-        <span style={{ minWidth: 28, color: "var(--muted)" }}>file</span>
+        <span style={{ color: "var(--muted)", minWidth: 22 }}>file</span>
         <span>{node.name}</span>
       </button>
     </li>
@@ -199,14 +220,12 @@ export default function RepoBrowser() {
         setRepositories(repoList);
         setSelectedRepository(repoList[0] ?? null);
       } catch (error) {
-        if (!active) {
-          return;
+        if (active) {
+          setToast({
+            title: "Could not load repositories",
+            detail: error instanceof Error ? error.message : "Unexpected API error.",
+          });
         }
-
-        setToast({
-          title: "Could not load repositories",
-          detail: error instanceof Error ? error.message : "Unexpected API error.",
-        });
       } finally {
         if (active) {
           setLoadingRepos(false);
@@ -215,7 +234,6 @@ export default function RepoBrowser() {
     }
 
     void loadRepositories();
-
     return () => {
       active = false;
     };
@@ -235,25 +253,22 @@ export default function RepoBrowser() {
       setLoadingTree(true);
       setSelectedPath(null);
       setFileContent(null);
+      setConfigStructure({ status: "idle" });
 
       try {
         const response = await requestJson<TreeNode[]>(
           `/tree?repo=${encodeURIComponent(selectedRepository.full_name)}`
         );
-        if (!active) {
-          return;
+        if (active) {
+          setTree(response);
         }
-
-        setTree(response);
       } catch (error) {
-        if (!active) {
-          return;
+        if (active) {
+          setToast({
+            title: "Could not load repository tree",
+            detail: error instanceof Error ? error.message : "Unexpected API error.",
+          });
         }
-
-        setToast({
-          title: "Could not load repository tree",
-          detail: error instanceof Error ? error.message : "Unexpected API error.",
-        });
       } finally {
         if (active) {
           setLoadingTree(false);
@@ -262,7 +277,6 @@ export default function RepoBrowser() {
     }
 
     void loadTree();
-
     return () => {
       active = false;
     };
@@ -286,20 +300,16 @@ export default function RepoBrowser() {
             selectedPath
           )}`
         );
-        if (!active) {
-          return;
+        if (active) {
+          setFileContent(response);
         }
-
-        setFileContent(response);
       } catch (error) {
-        if (!active) {
-          return;
+        if (active) {
+          setToast({
+            title: "Could not load file content",
+            detail: error instanceof Error ? error.message : "Unexpected API error.",
+          });
         }
-
-        setToast({
-          title: "Could not load file content",
-          detail: error instanceof Error ? error.message : "Unexpected API error.",
-        });
       } finally {
         if (active) {
           setLoadingFile(false);
@@ -308,7 +318,6 @@ export default function RepoBrowser() {
     }
 
     void loadFile();
-
     return () => {
       active = false;
     };
@@ -327,27 +336,23 @@ export default function RepoBrowser() {
 
       try {
         const response = await getConfigTree(selectedRepository.full_name, selectedPath);
-        if (!active) {
-          return;
+        if (active) {
+          setConfigStructure({
+            status: "ready",
+            detail: `${response.tree.children.length} top-level field${response.tree.children.length === 1 ? "" : "s"}`,
+          });
         }
-        console.log("config-tree", response);
-        setConfigStructure({
-          status: "ready",
-          detail: `${response.tree.children.length} top-level field${response.tree.children.length === 1 ? "" : "s"}`,
-        });
       } catch (error) {
-        if (!active) {
-          return;
+        if (active) {
+          setConfigStructure({
+            status: "error",
+            detail: error instanceof Error ? error.message : "Unexpected API error.",
+          });
         }
-        setConfigStructure({
-          status: "error",
-          detail: error instanceof Error ? error.message : "Unexpected API error.",
-        });
       }
     }
 
     void loadStructure();
-
     return () => {
       active = false;
     };
@@ -371,464 +376,183 @@ export default function RepoBrowser() {
   const visibleFileCount = useMemo(() => flattenFiles(visibleTree), [visibleTree]);
 
   return (
-    <main style={pageStyles.shell}>
-      <section style={pageStyles.hero}>
-        <div>
-          <p style={pageStyles.eyebrow}>Phase 2</p>
-          <h1 style={pageStyles.title}>Repository browser shell</h1>
-          <p style={pageStyles.subtitle}>
-            Browse live GitHub repositories available to your signed-in GitHub account, filter
-            supported config files, and preview file contents before opening the editor.
+    <main className="app-page">
+      <header className="page-header">
+        <div className="page-header__copy">
+          <p className="eyebrow">Repositories</p>
+          <h1 className="page-title" style={{ fontSize: "clamp(1.9rem, 3vw, 2.6rem)" }}>
+            Browse repositories and files without the extra noise.
+          </h1>
+          <p className="page-subtitle">
+            Search your accessible repositories, filter supported config files, and move into the
+            editor only when a file is ready.
           </p>
         </div>
-        <div style={pageStyles.heroCard}>
-          <span>Supported file types</span>
-          <strong>JSON, YAML, YML, XML</strong>
-        </div>
-      </section>
+        <span className="pill">{selectedRepository ? selectedRepository.full_name : "No repository selected"}</span>
+      </header>
 
-      {toast ? <ErrorToast toast={toast} onDismiss={() => setToast(null)} /> : null}
+      {toast ? <ErrorToast onDismiss={() => setToast(null)} toast={toast} /> : null}
 
-      <section style={pageStyles.grid}>
-        <aside style={panelStyles.root}>
-          <div style={panelStyles.header}>
+      <section className="page-grid page-grid--three">
+        <section className="panel">
+          <div className="panel__header panel__header--stacked">
             <div>
-              <p style={panelStyles.kicker}>Repositories</p>
-              <h2 style={panelStyles.title}>Connected repos</h2>
+              <h2 className="panel__title">Repositories</h2>
+              <p className="panel__subtitle">Pick a repository to load its supported config files.</p>
             </div>
-            <span style={panelStyles.badge}>
-              {loadingRepos ? "Loading" : `${visibleRepositories.length} shown`}
-            </span>
-          </div>
-
-          <label style={panelStyles.label}>
-            Search repositories
             <input
+              className="field"
               onChange={(event) => setRepoSearch(event.target.value)}
-              placeholder="Filter by name or description"
-              style={panelStyles.input}
+              placeholder="Search repositories"
               type="search"
               value={repoSearch}
             />
-          </label>
-
-          {loadingRepos ? (
-            <div style={panelStyles.emptyState}>
-              <strong>Loading repository list</strong>
-              <span>Fetching repositories from your authenticated GitHub session.</span>
-            </div>
-          ) : visibleRepositories.length === 0 ? (
-            <div style={panelStyles.emptyState}>
-              <strong>No repositories match</strong>
-              <span>Adjust the search input or confirm the token can access repositories.</span>
-            </div>
-          ) : (
-            <div style={panelStyles.stack}>
-              {visibleRepositories.map((repository) => {
-                const selected = repository.full_name === selectedRepository?.full_name;
-
-                return (
-                  <button
-                    key={repository.id}
-                    onClick={() => setSelectedRepository(repository)}
-                    style={{
-                      ...panelStyles.repoButton,
-                      ...(selected ? panelStyles.repoButtonActive : null),
-                    }}
-                    type="button"
-                  >
-                    <div style={{ display: "grid", gap: 6, textAlign: "left" }}>
+          </div>
+          <div className="panel__body">
+            {loadingRepos ? (
+              <div className="empty-state">
+                <strong>Loading repositories</strong>
+                <span>Fetching repositories for your GitHub session.</span>
+              </div>
+            ) : visibleRepositories.length === 0 ? (
+              <div className="empty-state">
+                <strong>No repositories match</strong>
+                <span>Try a different search query.</span>
+              </div>
+            ) : (
+              <div className="stack">
+                {visibleRepositories.map((repository) => {
+                  const selected = repository.full_name === selectedRepository?.full_name;
+                  return (
+                    <button
+                      key={repository.id}
+                      className={`list-button ${selected ? "list-button--active" : ""}`}
+                      onClick={() => setSelectedRepository(repository)}
+                      type="button"
+                    >
                       <strong>{repository.full_name}</strong>
-                      <span style={{ color: "var(--muted)" }}>{repository.description}</span>
-                    </div>
-                    <span style={panelStyles.metaPill}>
-                      {repository.visibility} · {repository.default_branch}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </aside>
-
-        <section style={panelStyles.root}>
-          <div style={panelStyles.header}>
-            <div>
-              <p style={panelStyles.kicker}>Repository tree</p>
-              <h2 style={panelStyles.title}>Config files</h2>
-            </div>
-            <span style={panelStyles.badge}>{visibleFileCount} files</span>
+                      <span className="meta-text">{repository.description}</span>
+                      <span className="pill" style={{ width: "fit-content" }}>
+                        {repository.visibility} · {repository.default_branch}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-
-          <div style={panelStyles.toolbar}>
-            <label style={panelStyles.labelCompact}>
-              Extension filter
-              <select
-                onChange={(event) => setExtensionFilter(event.target.value)}
-                style={panelStyles.select}
-                value={extensionFilter}
-              >
-                {extensionOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {loadingTree ? (
-            <div style={panelStyles.emptyState}>
-              <strong>Loading tree</strong>
-              <span>Building the live repository file tree for the selected repo.</span>
-            </div>
-          ) : visibleTree.length === 0 ? (
-            <div style={panelStyles.emptyState}>
-              <strong>No supported files found</strong>
-              <span>Select another filter or repository to see files.</span>
-            </div>
-          ) : (
-            <TreeBranch
-              nodes={visibleTree}
-              onSelect={(path) => setSelectedPath(path)}
-              selectedPath={selectedPath}
-            />
-          )}
         </section>
 
-        <section style={panelStyles.root}>
-          <div style={panelStyles.header}>
+        <section className="panel">
+          <div className="panel__header">
             <div>
-              <p style={panelStyles.kicker}>File viewer</p>
-              <h2 style={panelStyles.title}>Preview</h2>
+              <h2 className="panel__title">Files</h2>
+              <p className="panel__subtitle">{visibleFileCount} supported files in the current filter.</p>
             </div>
-            <span style={panelStyles.badge}>
-              {fileContent ? fileContent.language.toUpperCase() : "No file"}
-            </span>
+            <select
+              className="select-field"
+              onChange={(event) => setExtensionFilter(event.target.value)}
+              style={{ width: 140 }}
+              value={extensionFilter}
+            >
+              {extensionOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
+          <div className="panel__body">
+            {loadingTree ? (
+              <div className="empty-state">
+                <strong>Loading file tree</strong>
+                <span>Building the repository structure.</span>
+              </div>
+            ) : visibleTree.length === 0 ? (
+              <div className="empty-state">
+                <strong>No supported files</strong>
+                <span>Select another repository or adjust the filter.</span>
+              </div>
+            ) : (
+              <TreeBranch nodes={visibleTree} onSelect={setSelectedPath} selectedPath={selectedPath} />
+            )}
+          </div>
+        </section>
 
-          {loadingFile ? (
-            <div style={panelStyles.emptyState}>
-              <strong>Loading file content</strong>
-              <span>Fetching the selected file from the GitHub API.</span>
+        <section className="panel">
+          <div className="panel__header panel__header--stacked">
+            <div>
+              <h2 className="panel__title">Preview</h2>
+              <p className="panel__subtitle">
+                Review the file and move into the editor only when you are ready to make changes.
+              </p>
             </div>
-          ) : fileContent ? (
-            <div style={panelStyles.viewer}>
-              <div style={panelStyles.viewerHeader}>
-                <strong>{fileContent.path}</strong>
-                <span style={{ color: "var(--muted)" }}>{fileContent.repository}</span>
-              </div>
-              <div style={panelStyles.callout}>
-                <strong>Config structure</strong>
-                <span style={{ color: "var(--muted)" }}>
-                  {configStructure.status === "loading"
-                    ? "Fetching normalized structure for the editor."
-                    : configStructure.status === "ready"
-                      ? configStructure.detail
-                      : configStructure.status === "error"
-                        ? configStructure.detail
-                        : "Select a file to begin parsing."}
-                </span>
-              </div>
-              <pre style={panelStyles.pre}>{fileContent.content}</pre>
-              <div style={panelStyles.actions}>
-                <button
-                  onClick={() => {
-                    if (!selectedRepository || !selectedPath) {
-                      return;
+            {selectedRepository && selectedPath && configStructure.status === "ready" ? (
+              <div className="note">
+                <strong>Config structure ready</strong>
+                <span>{configStructure.detail}</span>
+                <div>
+                  <button
+                    className="button-primary"
+                    onClick={() =>
+                      router.push(
+                        `/app/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
+                          selectedPath
+                        )}`
+                      )
                     }
-                    router.push(
-                      `/app/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
-                        selectedPath
-                      )}`
-                    );
-                  }}
-                  style={panelStyles.primaryAction}
-                  type="button"
-                >
-                  Open in config editor
-                </button>
-                {selectedRepository && selectedPath ? (
+                    type="button"
+                  >
+                    Open in editor
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <div className="panel__body">
+            {!selectedPath ? (
+              <div className="empty-state">
+                <strong>Select a file</strong>
+                <span>Choose a supported config file to preview its content.</span>
+              </div>
+            ) : loadingFile ? (
+              <div className="empty-state">
+                <strong>Loading file</strong>
+                <span>Fetching content from GitHub.</span>
+              </div>
+            ) : fileContent ? (
+              <>
+                <div className="split-meta">
+                  <span className="pill">{fileContent.language.toUpperCase()}</span>
+                  <span className="meta-text">{fileContent.path}</span>
+                </div>
+                {configStructure.status === "loading" ? (
+                  <div className="note">
+                    <strong>Analyzing file structure</strong>
+                    <span>Preparing the editor view.</span>
+                  </div>
+                ) : configStructure.status === "error" ? (
+                  <div className="alert">
+                    <strong>Could not build config structure</strong>
+                    <span>{configStructure.detail}</span>
+                  </div>
+                ) : null}
+                <pre className="code-block">{fileContent.content}</pre>
+                {selectedRepository ? (
                   <Link
+                    className="button-secondary"
                     href={`/app/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
                       selectedPath
                     )}`}
-                    style={panelStyles.secondaryAction}
                   >
-                    Open dedicated route
+                    Open editor
                   </Link>
                 ) : null}
-              </div>
-            </div>
-          ) : (
-            <div style={panelStyles.emptyState}>
-              <strong>Select a config file</strong>
-              <span>Choose a JSON, YAML, YML, or XML file from the tree to preview it here.</span>
-            </div>
-          )}
+              </>
+            ) : null}
+          </div>
         </section>
       </section>
     </main>
   );
 }
-
-const pageStyles = {
-  shell: {
-    padding: "32px clamp(20px, 3vw, 44px) 48px",
-    display: "grid",
-    gap: 24,
-  },
-  hero: {
-    display: "grid",
-    gap: 20,
-    alignItems: "end",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-  },
-  eyebrow: {
-    margin: 0,
-    color: "var(--accent)",
-    letterSpacing: "0.12em",
-    textTransform: "uppercase" as const,
-    fontSize: 12,
-  },
-  title: {
-    margin: "10px 0 12px",
-    fontSize: "clamp(2.4rem, 4vw, 4rem)",
-    lineHeight: 1,
-  },
-  subtitle: {
-    margin: 0,
-    color: "var(--muted)",
-    maxWidth: 720,
-    fontSize: "1.04rem",
-    lineHeight: 1.6,
-  },
-  heroCard: {
-    padding: 20,
-    borderRadius: "var(--radius-lg)",
-    background: "rgba(255, 248, 235, 0.8)",
-    border: "1px solid var(--line)",
-    boxShadow: "var(--shadow)",
-    display: "grid",
-    gap: 8,
-    minHeight: 120,
-    alignContent: "center",
-  },
-  grid: {
-    display: "grid",
-    gap: 18,
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-  },
-};
-
-const panelStyles = {
-  root: {
-    borderRadius: "var(--radius-xl)",
-    border: "1px solid var(--line)",
-    background: "var(--panel)",
-    boxShadow: "var(--shadow)",
-    padding: 20,
-    display: "grid",
-    gap: 16,
-    alignContent: "start",
-  },
-  header: {
-    display: "flex",
-    alignItems: "start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  kicker: {
-    margin: 0,
-    color: "var(--muted)",
-    fontSize: 13,
-    textTransform: "uppercase" as const,
-    letterSpacing: "0.08em",
-  },
-  title: {
-    margin: "6px 0 0",
-    fontSize: 24,
-  },
-  badge: {
-    borderRadius: 999,
-    padding: "8px 12px",
-    background: "var(--accent-soft)",
-    color: "var(--accent)",
-    fontSize: 13,
-    whiteSpace: "nowrap" as const,
-  },
-  label: {
-    display: "grid",
-    gap: 8,
-    fontSize: 14,
-  },
-  labelCompact: {
-    display: "grid",
-    gap: 8,
-    fontSize: 13,
-    color: "var(--muted)",
-  },
-  input: {
-    width: "100%",
-    borderRadius: "var(--radius-md)",
-    border: "1px solid var(--line)",
-    padding: "12px 14px",
-    background: "var(--panel-strong)",
-  },
-  select: {
-    width: "100%",
-    borderRadius: "var(--radius-md)",
-    border: "1px solid var(--line)",
-    padding: "10px 12px",
-    background: "var(--panel-strong)",
-  },
-  toolbar: {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-  },
-  stack: {
-    display: "grid",
-    gap: 12,
-  },
-  repoButton: {
-    borderRadius: "var(--radius-lg)",
-    border: "1px solid var(--line)",
-    background: "rgba(255,255,255,0.64)",
-    padding: 16,
-    display: "grid",
-    gap: 12,
-    cursor: "pointer",
-  },
-  repoButtonActive: {
-    border: "1px solid rgba(15, 118, 110, 0.35)",
-    background: "rgba(15, 118, 110, 0.08)",
-  },
-  metaPill: {
-    justifySelf: "start",
-    borderRadius: 999,
-    padding: "6px 10px",
-    background: "rgba(31, 26, 20, 0.06)",
-    color: "var(--muted)",
-    fontSize: 12,
-  },
-  emptyState: {
-    borderRadius: "var(--radius-lg)",
-    border: "1px dashed var(--line)",
-    background: "rgba(255,255,255,0.54)",
-    minHeight: 180,
-    padding: 20,
-    display: "grid",
-    gap: 6,
-    alignContent: "center",
-    color: "var(--muted)",
-  },
-  viewer: {
-    display: "grid",
-    gap: 12,
-  },
-  callout: {
-    display: "grid",
-    gap: 4,
-    padding: 14,
-    borderRadius: "var(--radius-md)",
-    background: "rgba(15, 118, 110, 0.08)",
-    border: "1px solid rgba(15, 118, 110, 0.18)",
-  },
-  viewerHeader: {
-    display: "grid",
-    gap: 4,
-  },
-  actions: {
-    display: "flex",
-    flexWrap: "wrap" as const,
-    gap: 10,
-  },
-  primaryAction: {
-    border: 0,
-    borderRadius: 999,
-    padding: "12px 18px",
-    background: "var(--accent)",
-    color: "#f7f4ec",
-    cursor: "pointer",
-  },
-  secondaryAction: {
-    textDecoration: "none",
-    borderRadius: 999,
-    padding: "12px 18px",
-    border: "1px solid var(--line)",
-  },
-  pre: {
-    margin: 0,
-    padding: 18,
-    borderRadius: "var(--radius-lg)",
-    background: "#1f1a14",
-    color: "#f8efe0",
-    overflowX: "auto" as const,
-    fontFamily: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-    fontSize: 13,
-    lineHeight: 1.6,
-  },
-};
-
-const treeStyles = {
-  list: {
-    listStyle: "none",
-    padding: 0,
-    margin: 0,
-    display: "grid",
-    gap: 8,
-  },
-  folderButton: {
-    width: "100%",
-    border: 0,
-    background: "transparent",
-    padding: "8px 0",
-    cursor: "pointer",
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    fontWeight: 600,
-    textAlign: "left" as const,
-  },
-  fileButton: {
-    width: "100%",
-    border: "1px solid transparent",
-    borderRadius: "var(--radius-md)",
-    background: "rgba(255,255,255,0.65)",
-    padding: "10px 12px",
-    cursor: "pointer",
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-    textAlign: "left" as const,
-  },
-  fileButtonActive: {
-    border: "1px solid rgba(15, 118, 110, 0.35)",
-    background: "rgba(15, 118, 110, 0.1)",
-  },
-};
-
-const toastStyles = {
-  shell: {
-    position: "sticky" as const,
-    top: 16,
-    zIndex: 10,
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    alignItems: "start",
-    padding: 16,
-    borderRadius: "var(--radius-lg)",
-    border: "1px solid rgba(180, 35, 24, 0.24)",
-    background: "var(--warn-soft)",
-    boxShadow: "var(--shadow)",
-  },
-  dismiss: {
-    border: 0,
-    borderRadius: 999,
-    padding: "8px 12px",
-    background: "#fff",
-    cursor: "pointer",
-  },
-};
