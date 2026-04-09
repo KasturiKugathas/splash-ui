@@ -17,49 +17,31 @@ export default function ConfigSection({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <section style={styles.root}>
-      <button onClick={() => setIsOpen((value) => !value)} style={styles.header} type="button">
-        <div style={{ display: "grid", gap: 4, textAlign: "left" }}>
+    <section className="surface" style={{ overflow: "hidden" }}>
+      <button
+        onClick={() => setIsOpen((value) => !value)}
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          padding: "16px 18px",
+          border: 0,
+          background: "var(--panel-muted)",
+          textAlign: "left",
+        }}
+        type="button"
+      >
+        <div className="stack" style={{ gap: 4 }}>
           <strong>{title}</strong>
-          {description ? <span style={styles.description}>{description}</span> : null}
+          {description ? <span className="meta-text">{description}</span> : null}
         </div>
-        <span style={styles.chevron}>{isOpen ? "−" : "+"}</span>
+        <span className="meta-text" style={{ fontSize: 20 }}>
+          {isOpen ? "−" : "+"}
+        </span>
       </button>
-      {isOpen ? <div style={styles.content}>{children}</div> : null}
+      {isOpen ? <div className="stack" style={{ padding: 18 }}>{children}</div> : null}
     </section>
   );
 }
-
-const styles = {
-  root: {
-    border: "1px solid var(--line)",
-    borderRadius: "var(--radius-lg)",
-    background: "rgba(255, 255, 255, 0.7)",
-    overflow: "hidden",
-  },
-  header: {
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: "14px 16px",
-    border: 0,
-    background: "rgba(15, 118, 110, 0.08)",
-    cursor: "pointer",
-  },
-  content: {
-    padding: 16,
-    display: "grid",
-    gap: 14,
-  },
-  description: {
-    color: "var(--muted)",
-    fontSize: 13,
-  },
-  chevron: {
-    fontSize: 28,
-    lineHeight: 1,
-    color: "var(--accent)",
-  },
-};

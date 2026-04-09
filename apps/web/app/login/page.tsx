@@ -18,85 +18,46 @@ export default function LoginPage() {
   const loginError = queryError ?? error;
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
-      }}
-    >
-      <section
-        style={{
-          maxWidth: 500,
-          width: "100%",
-          borderRadius: 28,
-          border: "1px solid var(--line)",
-          background: "var(--panel)",
-          boxShadow: "var(--shadow)",
-          padding: 28,
-          display: "grid",
-          gap: 18,
-        }}
-      >
-        <div style={{ display: "grid", gap: 8 }}>
-          <h1 style={{ margin: 0 }}>Sign in to Splash-UI</h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-            Use GitHub OAuth to browse repositories you can access and create pull requests from
-            the editor.
-          </p>
-        </div>
-
-        <div
-          style={{
-            borderRadius: 18,
-            padding: 16,
-            background: "var(--panel-strong)",
-            border: "1px solid var(--line)",
-            display: "grid",
-            gap: 8,
-          }}
-        >
-          <strong>Local setup note</strong>
-          <span style={{ color: "var(--muted)", lineHeight: 1.6 }}>
-            Keep both apps on <code>localhost</code> in local development so the auth session cookie
-            works across the web app and API.
-          </span>
-        </div>
-
-        {loginError ? (
-          <div
-            role="alert"
-            style={{
-              borderRadius: 18,
-              padding: 16,
-              background: "#fff1eb",
-              border: "1px solid #f2c0a6",
-              color: "#8a3f1f",
-              lineHeight: 1.6,
-            }}
-          >
-            {loginError}
+    <main className="public-shell">
+      <section className="public-card public-card--compact">
+        <div className="stack-lg">
+          <p className="eyebrow">Welcome</p>
+          <div className="stack-lg" style={{ gap: 12 }}>
+            <h1 className="page-title" style={{ fontSize: "clamp(2rem, 4vw, 3rem)" }}>
+              Sign in to Splash-UI
+            </h1>
+            <p className="page-subtitle">
+              Authenticate with GitHub, then move straight into a quieter repository and config
+              editing workspace.
+            </p>
           </div>
-        ) : null}
+        </div>
 
-        <button
-          disabled={status === "loading"}
-          onClick={() => login(nextPath)}
-          style={{
-            width: "100%",
-            padding: 14,
-            borderRadius: 999,
-            border: 0,
-            background: "var(--accent)",
-            color: "#f7f4ec",
-            cursor: status === "loading" ? "wait" : "pointer",
-            opacity: status === "loading" ? 0.7 : 1,
-          }}
-          type="button"
-        >
-          {status === "loading" ? "Checking session..." : "Continue with GitHub"}
-        </button>
+        <section className="surface" style={{ padding: 24, display: "grid", gap: 16 }}>
+          <div className="note">
+            <strong>Local setup note</strong>
+            <span className="meta-text">
+              Keep both apps on <code>localhost</code> so the session cookie works correctly across
+              the web app and API.
+            </span>
+          </div>
+
+          {loginError ? (
+            <div className="alert" role="alert">
+              <strong>Login error</strong>
+              <span>{loginError}</span>
+            </div>
+          ) : null}
+
+          <button
+            className={`button-primary ${status === "loading" ? "button-disabled" : ""}`}
+            disabled={status === "loading"}
+            onClick={() => login(nextPath)}
+            type="button"
+          >
+            {status === "loading" ? "Checking your session..." : "Continue with GitHub"}
+          </button>
+        </section>
       </section>
     </main>
   );

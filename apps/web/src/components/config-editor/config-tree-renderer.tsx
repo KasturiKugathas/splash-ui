@@ -1,18 +1,8 @@
 "use client";
 
+import type { ConfigNode } from "../../lib/config-node";
 import ConfigSection from "./config-section";
 import KeyValueRow from "./key-value-row";
-import type { ConfigNode } from "../../lib/config-node";
-
-function inputStyle() {
-  return {
-    width: "100%",
-    borderRadius: "var(--radius-md)",
-    border: "1px solid var(--line)",
-    padding: "10px 12px",
-    background: "var(--panel-strong)",
-  };
-}
 
 function updateNode(nodes: ConfigNode[], targetPath: string, nextValue: ConfigNode["value"]): ConfigNode[] {
   return nodes.map((node) => {
@@ -31,10 +21,10 @@ function updateNode(nodes: ConfigNode[], targetPath: string, nextValue: ConfigNo
 function renderScalarNode(node: ConfigNode, onChange: (path: string, value: ConfigNode["value"]) => void) {
   if (node.kind === "string" || node.kind === "null") {
     return (
-      <KeyValueRow key={node.path} label={node.key} hint={node.path}>
+      <KeyValueRow key={node.path} hint={node.path} label={node.key}>
         <input
+          className="field"
           onChange={(event) => onChange(node.path, event.target.value)}
-          style={inputStyle()}
           type="text"
           value={typeof node.value === "string" ? node.value : ""}
         />
@@ -44,10 +34,10 @@ function renderScalarNode(node: ConfigNode, onChange: (path: string, value: Conf
 
   if (node.kind === "number") {
     return (
-      <KeyValueRow key={node.path} label={node.key} hint={node.path}>
+      <KeyValueRow key={node.path} hint={node.path} label={node.key}>
         <input
+          className="field"
           onChange={(event) => onChange(node.path, event.target.value === "" ? null : Number(event.target.value))}
-          style={inputStyle()}
           type="number"
           value={typeof node.value === "number" ? node.value : ""}
         />
@@ -57,8 +47,16 @@ function renderScalarNode(node: ConfigNode, onChange: (path: string, value: Conf
 
   if (node.kind === "boolean") {
     return (
-      <KeyValueRow key={node.path} label={node.key} hint={node.path}>
-        <label style={toggleStyles.shell}>
+      <KeyValueRow key={node.path} hint={node.path} label={node.key}>
+        <label
+          className="surface-muted"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+          }}
+        >
           <input
             checked={Boolean(node.value)}
             onChange={(event) => onChange(node.path, event.target.checked)}
@@ -78,8 +76,8 @@ function renderNode(node: ConfigNode, onChange: (path: string, value: ConfigNode
     return (
       <ConfigSection
         key={node.path}
-        title={node.key}
         description={`${node.children.length} nested field${node.children.length === 1 ? "" : "s"}`}
+        title={node.key}
       >
         {node.children.map((child) => renderNode(child, onChange))}
       </ConfigSection>
@@ -90,11 +88,14 @@ function renderNode(node: ConfigNode, onChange: (path: string, value: ConfigNode
     return (
       <ConfigSection
         key={node.path}
-        title={node.key}
         description={`${node.children.length} item${node.children.length === 1 ? "" : "s"}`}
+        title={node.key}
       >
         {node.children.length === 0 ? (
-          <div style={emptyStyles}>No array items available.</div>
+          <div className="empty-state">
+            <strong>No items</strong>
+            <span>No array values are currently present.</span>
+          </div>
         ) : (
           node.children.map((child) => renderNode(child, onChange))
         )}
@@ -119,31 +120,5 @@ export default function ConfigTreeRenderer({
     });
   };
 
-  return <div style={styles.root}>{node.children.map((child) => renderNode(child, handleChange))}</div>;
+  return <div className="stack-lg">{node.children.map((child) => renderNode(child, handleChange))}</div>;
 }
-
-const styles = {
-  root: {
-    display: "grid",
-    gap: 14,
-  },
-};
-
-const toggleStyles = {
-  shell: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "10px 12px",
-    borderRadius: "var(--radius-md)",
-    border: "1px solid var(--line)",
-    background: "var(--panel-strong)",
-  },
-};
-
-const emptyStyles = {
-  padding: "10px 12px",
-  color: "var(--muted)",
-  border: "1px dashed var(--line)",
-  borderRadius: "var(--radius-md)",
-};

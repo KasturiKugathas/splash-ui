@@ -2,68 +2,47 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
-      }}
-    >
-      <section
-        style={{
-          maxWidth: 900,
-          borderRadius: 32,
-          border: "1px solid var(--line)",
-          background: "var(--panel)",
-          boxShadow: "var(--shadow)",
-          padding: "40px clamp(24px, 4vw, 48px)",
-          display: "grid",
-          gap: 22,
-        }}
-      >
-        <p
-          style={{
-            margin: 0,
-            color: "var(--accent)",
-            fontSize: 13,
-            textTransform: "uppercase",
-            letterSpacing: "0.14em",
-          }}
-        >
-          Splash-UI
-        </p>
-        <h1 style={{ margin: 0, fontSize: "clamp(2.8rem, 6vw, 5.5rem)", lineHeight: 0.95 }}>
-          Govern config changes through a safer GitHub workflow.
-        </h1>
-        <p style={{ margin: 0, color: "var(--muted)", maxWidth: 720, lineHeight: 1.7 }}>
-          The local scaffold now includes GitHub OAuth login, a live repository browser, and an
-          editor flow for JSON, YAML, and XML configuration files.
-        </p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-          <Link
-            href="/login"
-            style={{
-              textDecoration: "none",
-              borderRadius: 999,
-              padding: "12px 18px",
-              background: "var(--accent)",
-              color: "#f7f4ec",
-            }}
-          >
-            Go to login
-          </Link>
-          <Link
-            href="/app/repositories"
-            style={{
-              textDecoration: "none",
-              borderRadius: 999,
-              padding: "12px 18px",
-              border: "1px solid var(--line)",
-            }}
-          >
-            View repository shell
-          </Link>
+    <main className="public-shell">
+      <section className="public-card">
+        <div className="stack-lg">
+          <p className="eyebrow">Splash-UI</p>
+          <div className="stack-lg" style={{ gap: 14 }}>
+            <h1 className="page-title">Govern config changes without adding dashboard noise.</h1>
+            <p className="page-subtitle">
+              Sign in with GitHub, browse the repositories you already have access to, edit
+              configuration files in a calmer workspace, and open pull requests from one place.
+            </p>
+          </div>
+        </div>
+
+        <div className="toolbar">
+          <div className="toolbar-actions">
+            <Link className="button-primary" href="/login">
+              Sign in with GitHub
+            </Link>
+            <Link className="button-secondary" href="/app/repositories">
+              Open workspace
+            </Link>
+          </div>
+          <span className="pill">Minimal UI refresh in progress</span>
+        </div>
+
+        <div className="page-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+          <section className="surface" style={{ padding: 20 }}>
+            <p className="eyebrow">Browse</p>
+            <h2 className="panel__title">Repository access</h2>
+            <p className="page-subtitle">View the repositories and supported config files tied to your GitHub login.</p>
+          </section>
+          <section className="surface" style={{ padding: 20 }}>
+            <p className="eyebrow">Edit</p>
+            <h2 className="panel__title">Draft safely</h2>
+            <p className="page-subtitle">Keep drafts around while you work, then reopen or delete them when you decide.</p>
+          </section>
+          <section className="surface" style={{ padding: 20 }}>
+            <p className="eyebrow">Ship</p>
+            <h2 className="panel__title">Open pull requests</h2>
+            <p className="page-subtitle">Create GitHub branches and PRs from the editor instead of copying changes by hand.</p>
+          </section>
         </div>
       </section>
     </main>
