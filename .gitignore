@@ -68,3 +68,8 @@ logs/
 # Local setup artifacts (this repo)
 # ------------------------------
 setup/*.local
+
+# Local offline dependency bundles and tool caches
+wheelhouse/
+.npm/
+.pip-cache/

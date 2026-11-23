@@ -1,0 +1,10 @@
+# Sample inventory worker settings for local development.
+worker:
+  queue: inventory-updates
+  concurrency: 4
+  retry:
+    maxAttempts: 3
+    backoffSeconds: 15
+logging:
+  level: info
+  format: json

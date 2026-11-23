@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import json
 import os
+from collections.abc import Callable
+from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any, TypedDict
@@ -41,6 +43,11 @@ class FileContent(TypedDict):
     content: str
 
 
+github_fixture: ContextVar[Callable[[str, str], object] | None] = ContextVar(
+    "github_fixture", default=None
+)
+
+
 SUPPORTED_EXTENSIONS = {".json", ".yaml", ".yml", ".xml"}
 
 
@@ -68,6 +75,10 @@ def _request_json(
     method: str = "GET",
     payload: dict[str, Any] | None = None,
 ) -> Any:
+    fixture = github_fixture.get()
+    if fixture is not None:
+        return fixture(path, method)
+
     config = _get_config()
     url = f"{config.api_base_url}{path}"
     if query:

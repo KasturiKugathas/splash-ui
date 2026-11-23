@@ -1,0 +1,13 @@
+{
+  "service": "inventory",
+  "environment": "local",
+  "http": {
+    "port": 8080,
+    "requestTimeoutMs": 3000
+  },
+  "features": {
+    "inventoryAlerts": true,
+    "auditLog": false
+  },
+  "regions": ["eu-west", "us-east"]
+}
