@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import RepoBrowser from "../../src/components/repo-browser";
 
 export default function PublicRepositoriesPage() {
-  redirect("/app/repositories");
+  return <RepoBrowser />;
 }

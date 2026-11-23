@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from app.services.auth import AuthSession, require_auth_session
 from app.services.github_client import (
     GitHubClientError,
     get_file_content,
@@ -12,20 +11,17 @@ router = APIRouter(tags=["repositories"])
 
 
 @router.get("/repos")
-def repos(session: AuthSession = Depends(require_auth_session)) -> list[dict[str, object]]:
+def repos() -> list[dict[str, object]]:
     try:
-        return list_repos(token=session.access_token)
+        return list_repos()
     except GitHubClientError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 @router.get("/tree")
-def tree(
-    repo: str = Query(..., min_length=1),
-    session: AuthSession = Depends(require_auth_session),
-) -> list[dict[str, object]]:
+def tree(repo: str = Query(..., min_length=1)) -> list[dict[str, object]]:
     try:
-        return get_repo_tree(repo, token=session.access_token)
+        return get_repo_tree(repo)
     except GitHubClientError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
@@ -34,9 +30,8 @@ def tree(
 def file_content(
     repo: str = Query(..., min_length=1),
     path: str = Query(..., min_length=1),
-    session: AuthSession = Depends(require_auth_session),
 ) -> dict[str, str]:
     try:
-        return get_file_content(repo, path, token=session.access_token)
+        return get_file_content(repo, path)
     except GitHubClientError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc

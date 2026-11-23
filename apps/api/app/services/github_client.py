@@ -41,35 +41,25 @@ class FileContent(TypedDict):
     content: str
 
 
-class AuthenticatedGitHubUser(TypedDict):
-    login: str
-    name: str
-    avatar_url: str
-    html_url: str
-
-
 SUPPORTED_EXTENSIONS = {".json", ".yaml", ".yml", ".xml"}
 
 
 @dataclass(frozen=True)
 class GitHubConfig:
+    token: str
     api_base_url: str
 
 
 def _get_config() -> GitHubConfig:
+    token = os.environ.get("GITHUB_TOKEN", "").strip()
+    if not token:
+        raise GitHubClientError(
+            "Set GITHUB_TOKEN before starting the API so Splash-UI can read your repositories.",
+            status_code=500,
+        )
+
     api_base_url = os.environ.get("GITHUB_API_BASE_URL", "https://api.github.com").rstrip("/")
-    return GitHubConfig(api_base_url=api_base_url)
-
-
-def _resolve_token(token: str | None) -> str:
-    resolved_token = (token or "").strip()
-    if resolved_token:
-        return resolved_token
-
-    raise GitHubClientError(
-        "Sign in with GitHub to continue.",
-        status_code=401,
-    )
+    return GitHubConfig(token=token, api_base_url=api_base_url)
 
 
 def _request_json(
@@ -77,10 +67,8 @@ def _request_json(
     query: dict[str, str] | None = None,
     method: str = "GET",
     payload: dict[str, Any] | None = None,
-    token: str | None = None,
 ) -> Any:
     config = _get_config()
-    resolved_token = _resolve_token(token)
     url = f"{config.api_base_url}{path}"
     if query:
         url = f"{url}?{parse.urlencode(query)}"
@@ -92,7 +80,7 @@ def _request_json(
         method=method,
         headers={
             "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {resolved_token}",
+            "Authorization": f"Bearer {config.token}",
             "Content-Type": "application/json",
             "User-Agent": "splash-ui-local-dev",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -105,7 +93,7 @@ def _request_json(
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         if exc.code == 401:
-            raise GitHubClientError("Your GitHub session is invalid or expired. Sign in again.", status_code=401) from exc
+            raise GitHubClientError("GITHUB_TOKEN is invalid or expired.", status_code=401) from exc
         if exc.code == 403:
             raise GitHubClientError(
                 "GitHub denied access. Check token scopes and repository permissions.",
@@ -136,8 +124,8 @@ def _supported_path(path: str) -> bool:
     return PurePosixPath(path).suffix.lower() in SUPPORTED_EXTENSIONS
 
 
-def list_repos(token: str | None = None) -> list[Repository]:
-    payload = _request_json("/user/repos", {"per_page": "100", "sort": "updated"}, token=token)
+def list_repos() -> list[Repository]:
+    payload = _request_json("/user/repos", {"per_page": "100", "sort": "updated"})
     repositories: list[Repository] = []
 
     for repo in payload:
@@ -157,19 +145,15 @@ def list_repos(token: str | None = None) -> list[Repository]:
     return repositories
 
 
-def get_repo_tree(repo_full_name: str, token: str | None = None) -> list[TreeNode]:
+def get_repo_tree(repo_full_name: str) -> list[TreeNode]:
     owner, repo = repo_full_name.split("/", 1)
-    repository = _request_json(f"/repos/{owner}/{repo}", token=token)
+    repository = _request_json(f"/repos/{owner}/{repo}")
     branch = repository.get("default_branch") or "main"
-    branch_payload = _request_json(
-        f"/repos/{owner}/{repo}/branches/{parse.quote(branch, safe='')}",
-        token=token,
-    )
+    branch_payload = _request_json(f"/repos/{owner}/{repo}/branches/{parse.quote(branch, safe='')}")
     tree_sha = branch_payload["commit"]["commit"]["tree"]["sha"]
     tree_payload = _request_json(
         f"/repos/{owner}/{repo}/git/trees/{tree_sha}",
         {"recursive": "1"},
-        token=token,
     )
 
     directories: dict[str, TreeNode] = {}
@@ -233,14 +217,13 @@ def get_repo_tree(repo_full_name: str, token: str | None = None) -> list[TreeNod
     return sort_nodes(root_nodes)
 
 
-def get_file_content(repo_full_name: str, path: str, token: str | None = None) -> FileContent:
+def get_file_content(repo_full_name: str, path: str) -> FileContent:
     if not _supported_path(path):
         raise GitHubClientError("Only JSON, YAML, YML, and XML files are supported.", status_code=400)
 
     owner, repo = repo_full_name.split("/", 1)
     payload = _request_json(
-        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
-        token=token,
+        f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}"
     )
 
     encoded_content = payload.get("content", "")
@@ -258,23 +241,17 @@ def get_file_content(repo_full_name: str, path: str, token: str | None = None) -
     }
 
 
-def get_default_branch(repo_full_name: str, token: str | None = None) -> str:
+def get_default_branch(repo_full_name: str) -> str:
     owner, repo = repo_full_name.split("/", 1)
-    repository = _request_json(f"/repos/{owner}/{repo}", token=token)
+    repository = _request_json(f"/repos/{owner}/{repo}")
     return repository.get("default_branch") or "main"
 
 
-def create_branch(
-    repo_full_name: str,
-    branch_name: str,
-    base_branch: str | None = None,
-    token: str | None = None,
-) -> dict[str, str]:
+def create_branch(repo_full_name: str, branch_name: str, base_branch: str | None = None) -> dict[str, str]:
     owner, repo = repo_full_name.split("/", 1)
-    source_branch = base_branch or get_default_branch(repo_full_name, token=token)
+    source_branch = base_branch or get_default_branch(repo_full_name)
     ref_payload = _request_json(
-        f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(source_branch, safe='')}",
-        token=token,
+        f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(source_branch, safe='')}"
     )
     source_sha = ref_payload["object"]["sha"]
 
@@ -286,14 +263,12 @@ def create_branch(
                 "ref": f"refs/heads/{branch_name}",
                 "sha": source_sha,
             },
-            token=token,
         )
     except GitHubClientError as exc:
         if "Reference already exists" not in str(exc):
             raise
         existing_ref = _request_json(
-            f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(branch_name, safe='')}",
-            token=token,
+            f"/repos/{owner}/{repo}/git/ref/heads/{parse.quote(branch_name, safe='')}"
         )
         return {"name": branch_name, "sha": existing_ref["object"]["sha"]}
 
@@ -306,13 +281,11 @@ def commit_file(
     branch_name: str,
     content: str,
     message: str,
-    token: str | None = None,
 ) -> dict[str, str]:
     owner, repo = repo_full_name.split("/", 1)
     current_file = _request_json(
         f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
         {"ref": branch_name},
-        token=token,
     )
     response = _request_json(
         f"/repos/{owner}/{repo}/contents/{parse.quote(path, safe='/')}",
@@ -323,7 +296,6 @@ def commit_file(
             "sha": current_file["sha"],
             "branch": branch_name,
         },
-        token=token,
     )
     return {
         "commit_sha": response["commit"]["sha"],
@@ -337,7 +309,6 @@ def create_pull_request(
     base_branch: str,
     title: str,
     body: str,
-    token: str | None = None,
 ) -> dict[str, str]:
     owner, repo = repo_full_name.split("/", 1)
     response = _request_json(
@@ -349,20 +320,9 @@ def create_pull_request(
             "base": base_branch,
             "body": body,
         },
-        token=token,
     )
     return {
         "number": str(response["number"]),
         "url": response["html_url"],
         "state": response["state"],
-    }
-
-
-def get_authenticated_user(token: str) -> AuthenticatedGitHubUser:
-    payload = _request_json("/user", token=token)
-    return {
-        "login": payload.get("login") or "",
-        "name": payload.get("name") or payload.get("login") or "",
-        "avatar_url": payload.get("avatar_url") or "",
-        "html_url": payload.get("html_url") or "",
     }
