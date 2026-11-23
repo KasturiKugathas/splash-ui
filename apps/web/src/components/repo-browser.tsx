@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { getConfigTree } from "../lib/config-tree";
-import { requestJson } from "../lib/api";
 
 type Repository = {
   id: string;
@@ -43,6 +42,7 @@ type ToastState = {
   detail: string;
 };
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 const extensionOptions = [
   { value: "all", label: "All supported files" },
   { value: ".json", label: "JSON only" },
@@ -167,6 +167,31 @@ function TreeNodeItem({
       </button>
     </li>
   );
+}
+
+async function requestJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    let detail = `API request failed with status ${response.status}`;
+
+    try {
+      const payload = (await response.json()) as { detail?: string };
+      if (payload.detail) {
+        detail = payload.detail;
+      }
+    } catch {
+      // Keep the default message when the backend does not return JSON.
+    }
+
+    throw new Error(detail);
+  }
+
+  return response.json() as Promise<T>;
 }
 
 export default function RepoBrowser() {
@@ -377,8 +402,8 @@ export default function RepoBrowser() {
           <p style={pageStyles.eyebrow}>Phase 2</p>
           <h1 style={pageStyles.title}>Repository browser shell</h1>
           <p style={pageStyles.subtitle}>
-            Browse live GitHub repositories available to your signed-in GitHub account, filter
-            supported config files, and preview file contents before opening the editor.
+            Browse live GitHub repositories available to your configured token, filter supported
+            config files, and preview file contents before the editor phase lands.
           </p>
         </div>
         <div style={pageStyles.heroCard}>
@@ -415,7 +440,7 @@ export default function RepoBrowser() {
           {loadingRepos ? (
             <div style={panelStyles.emptyState}>
               <strong>Loading repository list</strong>
-              <span>Fetching repositories from your authenticated GitHub session.</span>
+              <span>Fetching your live GitHub repositories from the API.</span>
             </div>
           ) : visibleRepositories.length === 0 ? (
             <div style={panelStyles.emptyState}>
@@ -538,7 +563,7 @@ export default function RepoBrowser() {
                       return;
                     }
                     router.push(
-                      `/app/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
+                      `/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
                         selectedPath
                       )}`
                     );
@@ -550,7 +575,7 @@ export default function RepoBrowser() {
                 </button>
                 {selectedRepository && selectedPath ? (
                   <Link
-                    href={`/app/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
+                    href={`/editor?repo=${encodeURIComponent(selectedRepository.full_name)}&path=${encodeURIComponent(
                       selectedPath
                     )}`}
                     style={panelStyles.secondaryAction}

@@ -1,22 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
-
-import { useAuth } from "../../src/contexts/auth-context";
-
 export default function LoginPage() {
-  const { login, status, error } = useAuth();
-  const [nextPath, setNextPath] = useState("/app");
-  const [queryError, setQueryError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setNextPath(params.get("next") ?? "/app");
-    setQueryError(params.get("error"));
-  }, []);
-
-  const loginError = queryError ?? error;
-
   return (
     <main
       style={{
@@ -28,74 +10,67 @@ export default function LoginPage() {
     >
       <section
         style={{
-          maxWidth: 500,
+          maxWidth: 460,
           width: "100%",
           borderRadius: 28,
           border: "1px solid var(--line)",
           background: "var(--panel)",
           boxShadow: "var(--shadow)",
           padding: 28,
-          display: "grid",
-          gap: 18,
         }}
       >
-        <div style={{ display: "grid", gap: 8 }}>
-          <h1 style={{ margin: 0 }}>Sign in to Splash-UI</h1>
-          <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.6 }}>
-            Use GitHub OAuth to browse repositories you can access and create pull requests from
-            the editor.
-          </p>
-        </div>
+        <h1 style={{ marginTop: 0, marginBottom: 8 }}>Sign in to Splash-UI</h1>
+        <p style={{ marginTop: 0, color: "var(--muted)", lineHeight: 1.6 }}>
+          Use email magic-link auth or GitHub OAuth to open the repository browser.
+        </p>
 
-        <div
-          style={{
-            borderRadius: 18,
-            padding: 16,
-            background: "var(--panel-strong)",
-            border: "1px solid var(--line)",
-            display: "grid",
-            gap: 8,
-          }}
-        >
-          <strong>Local setup note</strong>
-          <span style={{ color: "var(--muted)", lineHeight: 1.6 }}>
-            Keep both apps on <code>localhost</code> in local development so the auth session cookie
-            works across the web app and API.
-          </span>
-        </div>
-
-        {loginError ? (
-          <div
-            role="alert"
+        <form>
+          <label htmlFor="email" style={{ display: "grid", gap: 8, fontSize: 14 }}>
+            Work email
+            <input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="you@company.com"
+              style={{
+                display: "block",
+                width: "100%",
+                marginBottom: 16,
+                padding: 12,
+                borderRadius: 14,
+                border: "1px solid var(--line)",
+                background: "var(--panel-strong)",
+              }}
+            />
+          </label>
+          <button
+            type="submit"
             style={{
-              borderRadius: 18,
-              padding: 16,
-              background: "#fff1eb",
-              border: "1px solid #f2c0a6",
-              color: "#8a3f1f",
-              lineHeight: 1.6,
+              width: "100%",
+              padding: 12,
+              borderRadius: 999,
+              border: 0,
+              background: "var(--accent)",
+              color: "#f7f4ec",
             }}
           >
-            {loginError}
-          </div>
-        ) : null}
+            Send email login link
+          </button>
+        </form>
+
+        <div style={{ margin: "16px 0", textAlign: "center", color: "var(--muted)" }}>or</div>
 
         <button
-          disabled={status === "loading"}
-          onClick={() => login(nextPath)}
+          type="button"
           style={{
             width: "100%",
-            padding: 14,
+            padding: 12,
             borderRadius: 999,
-            border: 0,
-            background: "var(--accent)",
-            color: "#f7f4ec",
-            cursor: status === "loading" ? "wait" : "pointer",
-            opacity: status === "loading" ? 0.7 : 1,
+            border: "1px solid var(--line)",
+            background: "transparent",
           }}
-          type="button"
         >
-          {status === "loading" ? "Checking session..." : "Continue with GitHub"}
+          Continue with GitHub
         </button>
       </section>
     </main>
