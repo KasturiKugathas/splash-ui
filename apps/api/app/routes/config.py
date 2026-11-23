@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 
 from app.services.config_parser import build_config_tree
-from app.services.github_client import GitHubClientError, get_file_content
+from app.services.github_client import GitHubClientError, get_file_content, github_fixture
 
 router = APIRouter(tags=["config"])
 
@@ -17,6 +17,7 @@ def config_tree(
             "repository": repo,
             "path": path,
             "tree": build_config_tree(file_content),
+            **({"offline": True} if github_fixture.get() is not None else {}),
         }
     except GitHubClientError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc

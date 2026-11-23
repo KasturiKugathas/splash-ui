@@ -15,6 +15,7 @@ from app.services.github_client import (
     create_pull_request,
     get_default_branch,
     get_file_content,
+    github_fixture,
 )
 
 router = APIRouter(tags=["change-requests"])
@@ -50,6 +51,9 @@ def create_change_request(payload: ChangeRequestPayload) -> dict[str, object]:
 
 @router.post("/change-requests/{change_request_id}/open-pr")
 def open_pull_request(change_request_id: str) -> dict[str, object]:
+    if github_fixture.get() is not None:
+        raise HTTPException(status_code=403, detail="Pull requests are unavailable in offline development mode.")
+
     change_request = CHANGE_REQUESTS.get(change_request_id)
     if change_request is None:
         raise HTTPException(status_code=404, detail="Change request not found.")

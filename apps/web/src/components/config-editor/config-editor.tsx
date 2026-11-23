@@ -43,6 +43,7 @@ export default function ConfigEditor({
   const [openingPr, setOpeningPr] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
+  const offline = response?.offline === true;
   const isDirty =
     response !== null && draftTree !== null && JSON.stringify(response.tree) !== JSON.stringify(draftTree);
 
@@ -84,7 +85,7 @@ export default function ConfigEditor({
   };
 
   const handleCreatePullRequest = async () => {
-    if (!draftTree || !isDirty) {
+    if (!draftTree || !isDirty || offline) {
       return;
     }
 
@@ -285,11 +286,11 @@ export default function ConfigEditor({
                   {savingDraft ? "Saving draft..." : "Save draft"}
                 </button>
                 <button
-                  disabled={!isDirty || !draftTree || openingPr}
+                  disabled={offline || !isDirty || !draftTree || openingPr}
                   onClick={() => void handleCreatePullRequest()}
                   style={{
                     ...pageStyles.primaryButton,
-                    ...(!isDirty || openingPr ? pageStyles.buttonDisabled : null),
+                    ...(offline || !isDirty || openingPr ? pageStyles.buttonDisabled : null),
                   }}
                   type="button"
                 >
@@ -297,6 +298,8 @@ export default function ConfigEditor({
                 </button>
               </div>
             </div>
+
+            {offline ? <p>Offline development mode. Drafts are local to this API session, and GitHub PRs are disabled.</p> : null}
 
             <section style={pageStyles.validationCard}>
               <strong>Validation</strong>
